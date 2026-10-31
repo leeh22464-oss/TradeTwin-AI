@@ -49,3 +49,27 @@ def test_workflow2_failure_never_quotes(teammate, monkeypatch, setup):
     workflow2._cache.clear()
     recovered = pipeline.analyze_message(DE_RFQ, session_id=session)
     assert not recovered["idempotent_replay"] and recovered["quote_options"]
+
+
+def test_missing_evidence_version_fails_closed(teammate):
+    teammate["mode"] = "missing_evidence_version"
+    result = pipeline.analyze_message(DE_RFQ, session_id="wf2-no-evidence-version")
+    assert result["mode"] == "pending_check"
+    assert result["quote_options"] == []
+    assert not result["workflow2"]["ok"]
+
+
+def test_manual_review_with_numeric_estimates_never_quotes(teammate):
+    teammate["mode"] = "manual_review_priced"
+    result = pipeline.analyze_message(DE_RFQ, session_id="wf2-manual-priced")
+    assert result["coverage_findings"]
+    assert result["quote_options"] == []
+    assert result["mode"] == "pending_check"
+
+
+def test_workflow2_defaults_to_integrated_http(monkeypatch):
+    monkeypatch.delenv("WORKFLOW2_MODE", raising=False)
+    monkeypatch.delenv("WORKFLOW2_URL", raising=False)
+    settings = workflow2.settings()
+    assert settings["mode"] == "http"
+    assert settings["url"] == "http://127.0.0.1:3001/api/workflow2"

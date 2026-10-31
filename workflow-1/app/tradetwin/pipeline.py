@@ -278,9 +278,12 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
 
     all_options = opts
     priced_options = [o for o in opts if o.get("estimated_cost_eur") is not None and o.get("estimated_days") is not None
-                     and o.get("unit_price_eur") is not None]
+                     and o.get("unit_price_eur") is not None
+                     and not o.get("coverage", {}).get("manual_review_required")]
     opts = priced_options
-    if all_options and (all_options[0].get("estimated_cost_eur") is None
+    if all_options and not opts:
+        mode = "pending_check"
+    elif all_options and (all_options[0].get("estimated_cost_eur") is None
                         or all_options[0].get("estimated_days") is None
                         or all_options[0].get("unit_price_eur") is None):
         mode = "pending_check"

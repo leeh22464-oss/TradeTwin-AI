@@ -9,6 +9,8 @@ BEHAVIOUR = {"mode": "ok", "evidence_version": "evidence-v1"}
 def envelope():
     data = coverage.contract_envelope(get_kb())
     data["evidence_version"] = BEHAVIOUR["evidence_version"]
+    if BEHAVIOUR["mode"] == "missing_evidence_version":
+        data.pop("evidence_version", None)
     return data
 
 
@@ -26,4 +28,10 @@ def evaluate(request):
         elif mode == "extra_fields":
             result["owner_actions"] = [{"owner_role": "ENGINEERING", "action": "队友待办：确认散热片尺寸"}]
             result["issues"] = [{"finding": "规格书型号与 DoC 不一致", "evidence": []}]
+        elif mode == "missing_evidence_version":
+            data.pop("evidence_version", None)
+        elif mode == "manual_review_priced":
+            result["manual_review_required"] = True
+            for finding in result["findings"]:
+                finding["status"] = "MANUAL_REVIEW"
     return data

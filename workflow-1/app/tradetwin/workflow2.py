@@ -1,7 +1,8 @@
 """工作流一 → 工作流二的唯一接入点（契约 tradetwin.wf2.v1，说明见 app/docs/workflow2-contract.md）。
 
 WORKFLOW2_MODE:
-  local  —— 本仓库的参考实现 coverage.py（默认，离线可跑）
+  http   —— 队友的服务（默认，WORKFLOW2_URL）
+  local  —— 本仓库的参考实现 coverage.py（显式选择的离线模式）
   python —— 队友的 Python 模块，WORKFLOW2_MODULE=包.模块，需提供 envelope() 和 evaluate(request)
   http   —— 队友的服务，WORKFLOW2_URL，需提供 GET /envelope 和 POST /evaluate
 工作流二不可用或返回不合契约时抛 Workflow2Error，工作流一只追问、不报价，不用本地数据冒充。
@@ -31,9 +32,9 @@ class Workflow2Error(Exception):
 
 def settings() -> dict:
     return {
-        "mode": env("WORKFLOW2_MODE", "local").lower(),
+        "mode": env("WORKFLOW2_MODE", "http").lower(),
         "module": env("WORKFLOW2_MODULE"),
-        "url": env("WORKFLOW2_URL").rstrip("/"),
+        "url": env("WORKFLOW2_URL", "http://127.0.0.1:3001/api/workflow2").rstrip("/"),
         "timeout": float(env("WORKFLOW2_TIMEOUT", "15")),
     }
 
@@ -52,7 +53,9 @@ def _call(op: str, payload: dict | None = None) -> dict:
     try:
         if s["mode"] == "local":
             kb = get_kb()
-            return coverage.contract_envelope(kb) if op == "envelope" else coverage.contract_evaluate(payload, kb)
+            data = coverage.contract_envelope(kb) if op == "envelope" else coverage.contract_evaluate(payload, kb)
+            data["evidence_version"] = data.get("evidence_version") or data.get("rule_version")
+            return data
         if s["mode"] == "python":
             if not s["module"]:
                 raise Workflow2Error("WORKFLOW2_MODE=python 但未设置 WORKFLOW2_MODULE")
@@ -203,7 +206,8 @@ def _normalize_result(raw: dict, config: dict, problems: list, warnings: list) -
 
 def envelope() -> dict:
     data = validate_envelope(_call("envelope"))
-    data.setdefault("evidence_version", data.get("rule_version", "unknown"))
+    if not isinstance(data.get("evidence_version"), str) or not data["evidence_version"].strip():
+        raise Workflow2Error("工作流二 envelope 缺少非空 evidence_version")
     return data
 
 
@@ -224,6 +228,8 @@ def evaluate(configs: dict[str, dict]) -> dict:
         raise Workflow2Error(f"工作流二返回的 contract_version 不是 {CONTRACT_VERSION}")
     if data.get("request_id") != request["request_id"]:
         raise Workflow2Error("工作流二返回的 request_id 与请求不一致")
+    if not isinstance(data.get("evidence_version"), str) or not data["evidence_version"].strip():
+        raise Workflow2Error("工作流二 evaluate 缺少非空 evidence_version")
     raw_results = data.get("results")
     if not isinstance(raw_results, list):
         raise Workflow2Error("工作流二返回的 results 不是数组")
@@ -245,5 +251,5 @@ def evaluate(configs: dict[str, dict]) -> dict:
     if problems:
         raise Workflow2Error("工作流二结果不符合契约：" + "；".join(problems))
     return {"request_id": request["request_id"], "rule_version": data.get("rule_version", "unknown"),
-            "evidence_version": data.get("evidence_version", data.get("rule_version", "unknown")),
+            "evidence_version": data["evidence_version"],
             "provider": provider_name(), "warnings": warnings, "results": results}
