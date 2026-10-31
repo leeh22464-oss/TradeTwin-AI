@@ -49,7 +49,7 @@ def _key(*parts) -> str:
 def _evidence_version() -> str:
     try:
         current = workflow2.envelope()
-        return str(current.get("evidence_version") or current.get("rule_version") or "unknown")
+        return current["evidence_version"]
     except workflow2.Workflow2Error:
         return "unavailable"
 
@@ -129,7 +129,7 @@ def _owner_actions(primary: dict, mode: str, opts: list[dict]) -> list[dict]:
     if mode == "incomplete":
         acts.append(("SALES", "向买家追问缺失参数，补齐前不报确定价格和交期"))
     if mode == "pending_check":
-        acts.append(("QUALITY_COMPLIANCE", "工作流二暂不可用：人工核对证据覆盖与补测后再给买家报价"))
+        acts.append(("QUALITY_COMPLIANCE", "证据覆盖或补测尚待核验：确认后再给买家报价"))
     by_key = {f["item_key"]: f for f in primary["findings"]}
     names = {}
     for o in opts:
@@ -269,7 +269,7 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
                          and req["driver"] == base["driver_model"] and req.get("driver_status") == "unchanged")
             mode = "no_change" if unchanged else "options"
         wf2_meta.update(rule_version=ev["rule_version"],
-                        evidence_version=ev.get("evidence_version") or env.get("evidence_version") or ev["rule_version"],
+                        evidence_version=ev["evidence_version"],
                         warnings=ev["warnings"])
     except workflow2.Workflow2Error as exc:
         wf2_meta.update(ok=False, error=str(exc))
@@ -290,12 +290,15 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
     primary = primary or (all_options[0]["coverage"] if all_options else EMPTY_COVERAGE)
     questions = _questions(req, mode, kb)
     numbers = _facts_numbers(opts, kb)
+    if req.get("power_w") is not None:
+        numbers["watts"].append(req["power_w"])
     facts = {
         "languages": session["languages"],
         "channel": session["channel"],
         "buyer_name": session.get("buyer_name"),
         "subject": session.get("subject"),
         "baseline": baseline_view(kb),
+        "requested_config": {key: req[key] for key in extract.TECH_FIELDS},
         "mode": mode,
         "options": opts,
         "selected_option": selected_option,
@@ -336,6 +339,8 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
         "document_updates": primary["document_updates"],
         "consistency_issues": primary.get("issues", []),
         "quote_options": [_slim_option(o) for o in opts],
+        "candidate_options": [{"option_id": o["option_id"], "kind": o["kind"], "config": o["config"]}
+                              for o in all_options],
         "selected_option_id": selected_option["option_id"] if selected_option else None,
         "owner_actions": _owner_actions(primary, mode, all_options),
         "replies": replies,
@@ -350,8 +355,11 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
 
     session["request"] = req
     session["extraction"] = extraction
-    if opts and mode != "confirm_selected":
-        session["last_options"] = [{"option_id": o["option_id"], "kind": o["kind"], "config": o["config"]} for o in opts]
+    if all_options:
+        candidates = {o["option_id"]: o for o in session["last_options"]} if selected_option else {}
+        candidates.update({o["option_id"]: {"option_id": o["option_id"], "kind": o["kind"], "config": o["config"]}
+                           for o in all_options})
+        session["last_options"] = list(candidates.values())
     session["rounds"].append({"round": result["round"], "kind": kind, "run_id": result["run_id"],
                               "input": input_meta, "created_at": result["created_at"]})
     session["last_result"] = result
@@ -428,7 +436,7 @@ def apply_instruction(session_id: str, instruction: str) -> dict:
         raise PipelineError(f"上一轮没有方案 {parsed['select_option']}")
     merged = merge_request(session.get("request"), technical, kb) if has_technical else session["request"]
     input_meta = {"text": instruction, "source": "sales_instruction", "parsed": parsed}
-    result = _build(session, merged, technical if has_technical else session["extraction"], selected, input_meta, "instruction")
+    result = _build(session, merged, technical, selected, input_meta, "instruction")
     _remember(session, key, result)
     return result
 
@@ -442,7 +450,9 @@ def check_reply(text: str, session_id: str | None = None, channel: str | None = 
         opts = [{"unit_price_eur": o["unit_price_eur"], "estimated_cost_eur": o["estimated_cost_eur"],
                  "lead_time_working_days": o["lead_time_working_days"], "estimated_days": o["estimated_days"],
                  "config": o["config"], "retest_items": o["retest_items"]} for o in last["quote_options"]]
-        numbers = _facts_numbers(opts, kb) if opts else {}
+        numbers = _facts_numbers(opts, kb)
+        if session.get("request", {}).get("power_w") is not None:
+            numbers["watts"].append(session["request"]["power_w"])
         constraints = session["constraints"]
         channel = channel or session["channel"]
     return checker.check(text or "", numbers, channel or "email", constraints)

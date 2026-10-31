@@ -21,6 +21,13 @@ def teammate(monkeypatch):
     monkeypatch.setenv("WORKFLOW2_MODE", "python")
     monkeypatch.setenv("WORKFLOW2_MODULE", "fake_wf2")
     workflow2._cache.clear()
-    fake_wf2.BEHAVIOUR.update(mode="ok", evidence_version="evidence-v1")
+    fake_wf2.BEHAVIOUR.update(mode="ok", evidence_version="evidence-v1", verified_evidence=False)
     yield fake_wf2.BEHAVIOUR
     workflow2._cache.clear()
+
+
+@pytest.fixture
+def verified_workflow2(teammate):
+    """Synthetic independent EMC/material reports, explicitly for priced orchestration tests."""
+    teammate["verified_evidence"] = True
+    return teammate

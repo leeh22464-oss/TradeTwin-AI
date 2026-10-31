@@ -54,7 +54,6 @@ def _call(op: str, payload: dict | None = None) -> dict:
         if s["mode"] == "local":
             kb = get_kb()
             data = coverage.contract_envelope(kb) if op == "envelope" else coverage.contract_evaluate(payload, kb)
-            data["evidence_version"] = data.get("evidence_version") or data.get("rule_version")
             return data
         if s["mode"] == "python":
             if not s["module"]:
@@ -192,8 +191,8 @@ def _normalize_result(raw: dict, config: dict, problems: list, warnings: list) -
         "document_updates": list(raw.get("document_updates") or []),
         "incomplete": [f["item_key"] for f in findings if f["status"] == "NOT_ENOUGH_EVIDENCE"],
         "manual_review_required": manual,
-        "estimated_cost_eur": raw.get("estimated_cost_eur"),
-        "estimated_days": raw.get("estimated_days"),
+        "estimated_cost_eur": None if manual else raw.get("estimated_cost_eur"),
+        "estimated_days": None if manual else raw.get("estimated_days"),
         "days_breakdown": raw.get("days_breakdown") or {},
         "owner_actions": [item for item in owner_actions if isinstance(item, dict)],
         "issues": list(raw.get("issues") or []),
@@ -206,6 +205,8 @@ def _normalize_result(raw: dict, config: dict, problems: list, warnings: list) -
 
 def envelope() -> dict:
     data = validate_envelope(_call("envelope"))
+    if not isinstance(data.get("rule_version"), str) or not data["rule_version"].strip():
+        raise Workflow2Error("工作流二 envelope 缺少非空 rule_version")
     if not isinstance(data.get("evidence_version"), str) or not data["evidence_version"].strip():
         raise Workflow2Error("工作流二 envelope 缺少非空 evidence_version")
     return data
@@ -228,6 +229,8 @@ def evaluate(configs: dict[str, dict]) -> dict:
         raise Workflow2Error(f"工作流二返回的 contract_version 不是 {CONTRACT_VERSION}")
     if data.get("request_id") != request["request_id"]:
         raise Workflow2Error("工作流二返回的 request_id 与请求不一致")
+    if not isinstance(data.get("rule_version"), str) or not data["rule_version"].strip():
+        raise Workflow2Error("工作流二 evaluate 缺少非空 rule_version")
     if not isinstance(data.get("evidence_version"), str) or not data["evidence_version"].strip():
         raise Workflow2Error("工作流二 evaluate 缺少非空 evidence_version")
     raw_results = data.get("results")
@@ -250,6 +253,6 @@ def evaluate(configs: dict[str, dict]) -> dict:
         results[cid] = _normalize_result(by_id[cid], dict(cfg), problems, warnings)
     if problems:
         raise Workflow2Error("工作流二结果不符合契约：" + "；".join(problems))
-    return {"request_id": request["request_id"], "rule_version": data.get("rule_version", "unknown"),
+    return {"request_id": request["request_id"], "rule_version": data["rule_version"],
             "evidence_version": data["evidence_version"],
             "provider": provider_name(), "warnings": warnings, "results": results}

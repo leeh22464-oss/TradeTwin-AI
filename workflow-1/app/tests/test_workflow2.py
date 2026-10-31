@@ -4,19 +4,19 @@ import fake_wf2
 from tradetwin import pipeline, workflow2
 from test_engine import DE_RFQ
 
-def test_teammate_module_gives_same_options(teammate):
+def test_verified_workflow2_prices_known_evidence(verified_workflow2):
     result = pipeline.analyze_message(DE_RFQ, session_id="wf2-ok")
     assert result["workflow2"]["provider"] == "python:fake_wf2" and result["workflow2"]["ok"]
     costs = {o["option_id"]: (o["estimated_cost_eur"], o["estimated_days"]) for o in result["quote_options"]}
     assert costs == {"A": (2100, 8), "B": (3600, 12), "C": (900, 7)}
+    assert all(f["evidence"] for option in result["quote_options"] for f in option["findings"] if f["status"] == "COVERED")
 
 
-def test_covered_without_evidence_is_downgraded(teammate):
-    teammate["mode"] = "covered_without_evidence"
+def test_covered_without_evidence_is_downgraded(verified_workflow2):
+    verified_workflow2["mode"] = "covered_without_evidence"
     result = pipeline.analyze_message(DE_RFQ, session_id="wf2-noev")
-    option_c = next(o for o in result["quote_options"] if o["option_id"] == "C")
-    thermal = next(f for f in option_c["findings"] if f["item_key"] == "thermal_rise")
-    assert thermal["status"] == "MANUAL_REVIEW"
+    assert result["mode"] == "pending_check" and result["quote_options"] == []
+    assert any(f["status"] == "MANUAL_REVIEW" for f in result["coverage_findings"])
     assert any("降为 MANUAL_REVIEW" in w for w in result["workflow2"]["warnings"])
 
 
@@ -30,7 +30,7 @@ def test_teammate_actions_and_issues_are_internal_only(teammate):
 
 
 @pytest.mark.parametrize("setup", ["missing_cost", "service_down"])
-def test_workflow2_failure_never_quotes(teammate, monkeypatch, setup):
+def test_workflow2_failure_never_quotes(teammate, verified_workflow2, monkeypatch, setup):
     if setup == "missing_cost":
         teammate["mode"] = "missing_cost"
     else:
@@ -65,6 +65,36 @@ def test_manual_review_with_numeric_estimates_never_quotes(teammate):
     assert result["coverage_findings"]
     assert result["quote_options"] == []
     assert result["mode"] == "pending_check"
+
+
+@pytest.mark.parametrize("mode", ["unknown_status", "covered_without_evidence", "manual_review_priced"])
+def test_unresolved_results_remove_numeric_estimates(verified_workflow2, mode):
+    verified_workflow2["mode"] = mode
+    normalized = workflow2.evaluate({"A": {"power_w": 30, "ip_rating": "IP44", "driver": "DRV-A"}})
+    result = normalized["results"]["A"]
+    assert result["manual_review_required"]
+    assert result["estimated_cost_eur"] is None and result["estimated_days"] is None
+    pending = pipeline.analyze_message(DE_RFQ, session_id="wf2-unresolved-" + mode)
+    assert pending["mode"] == "pending_check" and pending["quote_options"] == []
+    for reply in pending["replies"].values():
+        assert "EUR" not in reply["body"] and "working days" not in reply["body"] and "Arbeitstage" not in reply["body"]
+
+
+def test_missing_evaluation_evidence_version_fails_closed(verified_workflow2):
+    verified_workflow2["mode"] = "missing_evaluation_evidence_version"
+    result = pipeline.analyze_message(DE_RFQ, session_id="wf2-no-evaluation-evidence-version")
+    assert not result["workflow2"]["ok"]
+    assert "evaluate" in result["workflow2"]["error"]
+    assert result["mode"] == "pending_check" and result["quote_options"] == []
+
+
+@pytest.mark.parametrize("mode", ["missing_envelope_rule_version", "missing_evaluation_rule_version"])
+def test_missing_rule_version_fails_closed(verified_workflow2, mode):
+    verified_workflow2["mode"] = mode
+    result = pipeline.analyze_message(DE_RFQ, session_id="wf2-" + mode)
+    assert not result["workflow2"]["ok"]
+    assert "rule_version" in result["workflow2"]["error"]
+    assert result["mode"] == "pending_check" and result["quote_options"] == []
 
 
 def test_workflow2_defaults_to_integrated_http(monkeypatch):

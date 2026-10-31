@@ -18,6 +18,7 @@ WORKFLOW2_MODE=python                 # 同一仓库内的 Python 模块
 WORKFLOW2_MODULE=workflow2_team.api   #   需提供 envelope() -> dict 和 evaluate(request: dict) -> dict
 WORKFLOW2_MODE=http                   # 独立服务（任何语言）
 WORKFLOW2_URL=http://127.0.0.1:3001/api/workflow2 #   需提供 GET /envelope 和 POST /evaluate
+WORKFLOW2_MODE=local                  # 显式选择的离线参考实现；未解决证据仍待人工核验，不提供数字报价
 ```
 
 接入后先跑联调自检：
@@ -50,7 +51,7 @@ python -m tradetwin.contract_check --url http://127.0.0.1:3001/api/workflow2
 }
 ```
 
-必填项：`contract_version`、非空 `evidence_version`、`product`、`coverage.power_range_w.min/max`、`coverage.ip_rating`、`coverage.driver`。
+必填项：`contract_version`、非空 `rule_version` 和 `evidence_version`、`product`、`coverage.power_range_w.min/max`、`coverage.ip_rating`、`coverage.driver`。评估响应也必须包含非空的两个版本字段。
 
 ## 2. evaluate：批量评估候选配置
 
@@ -93,8 +94,8 @@ python -m tradetwin.contract_check --url http://127.0.0.1:3001/api/workflow2
       "lab_days": 6
     }],
     "document_updates": ["DoC", "label", "German instructions"],
-    "estimated_cost_eur": 2100,
-    "estimated_days": 8,
+    "estimated_cost_eur": null,
+    "estimated_days": null,
     "days_breakdown": {"new_driver_sample": 0, "lab_parallel": 6, "document_update": 2},
     "manual_review_required": true,
     "owner_actions": [{"owner_role": "QUALITY_COMPLIANCE", "action": "确认密封件材料证据"}],
@@ -112,7 +113,7 @@ python -m tradetwin.contract_check --url http://127.0.0.1:3001/api/workflow2
 | `findings[].status` | 是 | `COVERED` / `NEEDS_RETEST` / `DOCUMENT_UPDATE` / `MANUAL_REVIEW` / `NOT_ENOUGH_EVIDENCE`；未知值按 `MANUAL_REVIEW` 处理 |
 | `findings[].evidence` | 是 | 每条要有 `document_id`、`page`、`quote`。**`COVERED` 没有证据会被降为 `MANUAL_REVIEW`** |
 | `retest_items[]` | 是 | `test_key`、`cost_eur`、`lab_days` 必填；`name.en` / `name.de` 用于写买家回复，缺省时回复里写成“additional test (key)” |
-| `estimated_cost_eur` / `estimated_days` | 是 | 该配置的补测总费用和总增加天数（工作流二决定串行还是并行） |
+| `estimated_cost_eur` / `estimated_days` | 是 | 该配置的补测总费用和总增加天数；有限非负数或 `null`。未解决的人工核验、未知状态、缺少覆盖证据时不得报价 |
 | `synthetic` / `human_confirmed` | 是 | 必须明确声明；演示数据为 `true` / `false` |
 | `document_updates` | 否 | 建议使用 `DoC`、`label`、`German instructions`，其他名称原样写进回复 |
 | `owner_actions` | 否 | 合并进内部待办；`owner_role` 取 `SALES` / `ENGINEERING` / `QUALITY_COMPLIANCE` / `LAB_PURCHASING` |
@@ -120,8 +121,13 @@ python -m tradetwin.contract_check --url http://127.0.0.1:3001/api/workflow2
 
 约定的特殊情况：
 
-- 驱动电源不变时，EMC 结论应为 `MANUAL_REVIEW`（可能沿用、需确认）。工作流一据此在回复里写“预计可沿用，待工程确认”。
-- 参数为 `null` 时，对应项返回 `NOT_ENOUGH_EVIDENCE`，费用可以为 0。
+- 驱动电源相同不足以证明 EMC 覆盖。离线参考缺少独立 EMC/材料证据，返回 `MANUAL_REVIEW` 和 `null` 总估算；买家回复保持待核验，不含数字价格或交期。正式 Node 服务具备独立证据且无需人工核验时，可正常报价：36W/IP44 为 €2,100 / 8 天，30W/IP44 为 €900 / 7 天。
+- 参数为 `null` 时，对应项返回 `NOT_ENOUGH_EVIDENCE`，总费用与总周期返回 `null`。
+- `envelope` 与 `evaluate` 都必须提供非空 `evidence_version`，不得用 `rule_version` 替代。离线参考对产品范围、报告页内容、规则与费率做确定性 SHA-256；文件修改后重新加载证据并使重放缓存失效。
+- 工作流一通过 `candidate_options: [{option_id, kind, config}]` 保留当前待核验候选配置，不含价格或周期；可据此选择方案。已选方案保存在 `selected_option_id`，实际参数在 `change_order[].to` 中。待核验候选不进入 `quote_options`。已选择的方案只被当前轮显式技术参数修改，语言或格式指令不会恢复旧配置。
+- 有会话事实时，发送前校验将空金额/天数集合解释为无获准数字：手工加入金额或交期会触发阻断；没有会话事实的独立文案检查仍可执行通用校验。
+
+测试中的 `verified_workflow2` 是明确命名的合成独立证据 fixture，只用于价格与多轮编排验证；它为每个 `COVERED` 项提供页码和原文，不改变生产参考证据或伪造生产确认。
 
 ## 失败时工作流一怎么做
 
