@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>TradeTwin 询盘助手</title>
+<link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+<header>
+  <strong>贸链通 TradeTwin</strong>
+  <span id="conn" class="pill">连接中…</span>
+</header>
+
+<section>
+  <div class="row">
+    <button id="btn-read" class="btn">读取买家消息</button>
+    <select id="channel">
+      <option value="alibaba_rfq">国际站 RFQ</option>
+      <option value="email">邮件</option>
+    </select>
+    <button id="btn-new" class="btn" title="换了一个买家时点这里">新会话</button>
+  </div>
+  <p class="hint">优先读取选中文字；未选择时尝试最近一条可确认的买家消息。请核对预览，也可以手动粘贴。确认同一买家后才续接历史。</p>
+  <p id="source-notice" class="hint" role="status" aria-live="polite">读取后可编辑；点击分析才会处理，清空输入可取消。</p>
+  <textarea id="input" rows="6" placeholder="买家消息会出现在这里，也可以直接粘贴"></textarea>
+  <button id="btn-analyze" class="btn primary wide">分析并生成回复</button>
+</section>
+
+<section id="summary" class="hidden"></section>
+
+<section id="reply" class="hidden">
+  <p id="sync-notice" class="hint" role="status" aria-live="polite"></p>
+  <button id="btn-sync" class="btn hidden">重试同步品质队列</button>
+  <div class="tabs" id="lang-tabs"></div>
+  <textarea id="reply-body" rows="12"></textarea>
+  <div class="row">
+    <button id="btn-insert" class="btn primary">填入回复框</button>
+    <button id="btn-copy" class="btn">复制</button>
+    <button id="btn-check" class="btn">校验此文本</button>
+  </div>
+  <button id="btn-review-mine" class="btn wide">我写 AI 审：读取我在回复框里写的内容</button>
+  <div id="check"></div>
+  <div class="r2">
+    <input id="instruction" placeholder="修改指令：选方案C / 先不要承诺交期 / 只要德语">
+    <button id="btn-instruct" class="btn">改</button>
+  </div>
+  <p class="hint">只会填入输入框，发送需要你自己点击。</p>
+</section>
+
+<details>
+  <summary>设置</summary>
+  <label>后端地址 <input id="backend" value="http://127.0.0.1:3001/api/workflow1"></label>
+  <p class="hint">默认经 Node 同步到品质队列。独立开发可改为 http://127.0.0.1:8000（或 localhost:8000）；此模式仅连接 Python，不同步品质队列。</p>
+</details>
+
+<div id="toast" class="toast hidden"></div>
+<script src="sidepanel.js"></script>
+</body>
+</html>

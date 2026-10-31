@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "TradeTwin 贸链通 · 询盘助手",
+  "version": "0.1.0",
+  "description": "在阿里巴巴国际站读取你选中的买家消息，生成带证据和补测代价的报价回复，并在发送前做风险校验。不会自动发送。",
+  "permissions": ["sidePanel", "activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1:3001/*", "http://localhost:3001/*", "http://127.0.0.1:8000/*", "http://localhost:8000/*", "https://*.alibaba.com/*"],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "打开 TradeTwin 询盘助手" },
+  "content_scripts": [
+    {
+      "matches": ["https://*.alibaba.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
