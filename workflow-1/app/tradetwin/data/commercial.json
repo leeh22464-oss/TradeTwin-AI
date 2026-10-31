@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "data_status": "synthetic_demo_pending_lab_confirmation",
+  "assumption_version": "COST-DEMO-V0.1",
+  "currency": "EUR",
+  "note": "补测费用、周期和单价全部为合成演示数据，与 knowledge-base 中方案 A €2,100/+8 天、方案 B €3,600/+12 天保持一致；不是实验室报价或交付承诺。",
+  "test_items": {
+    "thermal_rise": {"zh": "温升与耐热相关测试", "en": "temperature rise and heat resistance tests", "de": "Erwärmungs- und Wärmebeständigkeitsprüfungen", "cost_eur": 1200, "lab_days": 6},
+    "ingress_protection": {"zh": "防尘防水（IP）测试", "en": "ingress protection test", "de": "Prüfung der Schutzart", "cost_eur": 900, "lab_days": 5},
+    "emc_electrical": {"zh": "EMC 与电气安全复核", "en": "EMC and electrical safety review", "de": "EMV- und elektrische Sicherheitsprüfung", "cost_eur": 1500, "lab_days": 7}
+  },
+  "new_driver_sample_days": 3,
+  "document_update_days": 2,
+  "pricing": {
+    "base_unit_price_eur": 8.5,
+    "base_power_w": 24,
+    "per_watt_eur": 0.12,
+    "ip44_surcharge_eur": 0.6,
+    "new_driver_surcharge_eur": 0.35,
+    "base_lead_working_days": 25,
+    "default_quantity": 1000
+  }
+}

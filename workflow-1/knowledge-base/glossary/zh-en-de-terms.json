@@ -1,0 +1,22 @@
+{
+  "glossary_version": "0.1.0",
+  "scope": "EU indoor fixed LED luminaire synthetic demo",
+  "terms": [
+    {"term_id":"TERM-MODEL","zh":"型号","en":"model","de":"Modell","synonyms":["产品型号","model number"],"do_not_translate_as":"certified model"},
+    {"term_id":"TERM-SKU","zh":"SKU","en":"SKU","de":"SKU","synonyms":["库存单位"],"do_not_translate_as":"compliance status"},
+    {"term_id":"TERM-POWER","zh":"额定功率","en":"rated power","de":"Nennleistung","synonyms":["功率","Wattage"],"do_not_translate_as":"approved power"},
+    {"term_id":"TERM-VOLTAGE","zh":"输入电压","en":"input voltage","de":"Eingangsspannung","synonyms":["额定输入","voltage range"],"do_not_translate_as":"legal voltage"},
+    {"term_id":"TERM-DOC","zh":"符合性声明","en":"Declaration of Conformity","de":"EU-Konformitätserklärung","synonyms":["DoC","声明"],"do_not_translate_as":"certificate"},
+    {"term_id":"TERM-TEST","zh":"测试报告","en":"test report","de":"Prüfbericht","synonyms":["检测报告"],"do_not_translate_as":"approval"},
+    {"term_id":"TERM-LABEL","zh":"标签","en":"label","de":"Kennzeichnung","synonyms":["产品标签"],"do_not_translate_as":"CE approval"},
+    {"term_id":"TERM-INSTRUCTIONS","zh":"说明书","en":"instructions","de":"Anleitung","synonyms":["使用说明"],"do_not_translate_as":"legal declaration"},
+    {"term_id":"TERM-SAMPLE","zh":"样品","en":"test sample","de":"Prüfmuster","synonyms":["样机"],"do_not_translate_as":"production approval"},
+    {"term_id":"TERM-VERSION","zh":"文件版本","en":"document version","de":"Dokumentversion","synonyms":["版本号"],"do_not_translate_as":"latest certified version"},
+    {"term_id":"TERM-MARKET","zh":"目标市场","en":"target market","de":"Zielmarkt","synonyms":["销售市场"],"do_not_translate_as":"market authorization"},
+    {"term_id":"TERM-CONFORMITY","zh":"符合性","en":"conformity","de":"Konformität","synonyms":["符合要求"],"do_not_translate_as":"certification"},
+    {"term_id":"TERM-EVIDENCE","zh":"证据","en":"evidence","de":"Nachweis","synonyms":["依据","原文"],"do_not_translate_as":"proof of compliance"},
+    {"term_id":"TERM-HARD","zh":"硬伤候选","en":"hard-issue candidate","de":"Kritischer Prüfkandidat","synonyms":["阻断项"],"do_not_translate_as":"illegal"},
+    {"term_id":"TERM-RECOMMENDATION","zh":"建议","en":"recommendation","de":"Empfehlung","synonyms":["改进建议"],"do_not_translate_as":"mandatory requirement"},
+    {"term_id":"TERM-MANUAL","zh":"待人工核验","en":"manual review","de":"Manuelle Prüfung","synonyms":["人工确认"],"do_not_translate_as":"failed"}
+  ]
+}

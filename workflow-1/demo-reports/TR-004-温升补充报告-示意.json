@@ -1,0 +1,46 @@
+{
+  "title": "温升补充测试报告 TR-004（合成示意）",
+  "kind": "safety",
+  "coverage": {
+    "series": "NL-L",
+    "powerMinW": 30,
+    "powerMaxW": 40,
+    "ipLevels": [],
+    "drivers": ["DRV-A"],
+    "materials": ["original-material"],
+    "markets": ["EU", "DE"],
+    "tests": ["temperature"],
+    "confidence": 0.95
+  },
+  "pages": [
+    {
+      "page": 1,
+      "text": "报告编号：TR-004（合成示意数据，不代表任何真实检测机构或检测结论）。委托方：NordLuma Lighting（虚构）。样品：NL-L 系列室内固定式 LED 灯具；驱动电源 DRV-A；材料 original-material；目标市场 EU/DE。报告日期：2026-10-31。"
+    },
+    {
+      "page": 2,
+      "text": "测试项目：温升与耐热相关测试（补充）。测试功率区间：30W–40W，样品在 30W、36W、40W 三个功率点完成测试，驱动电源 DRV-A。结论（示意）：所测功率点温升均在限值内。本报告不包含防尘防水（IP）测试，防护等级不作为本报告的判定条件。"
+    },
+    {
+      "page": 3,
+      "text": "适用范围说明：本报告仅补充温升与耐热项目，覆盖 NL-L 系列 30W–40W、DRV-A、original-material。EMC、电气强度、防尘防水与 RoHS 证据请参见其他报告。更换驱动电源或材料时，本报告结论不再适用。"
+    }
+  ],
+  "testScopes": {
+    "temperature": {
+      "coverage": {
+        "series": "NL-L",
+        "powerMinW": 30,
+        "powerMaxW": 40,
+        "ipLevels": [],
+        "drivers": ["DRV-A"],
+        "materials": ["original-material"],
+        "markets": ["EU", "DE"],
+        "tests": ["temperature"],
+        "confidence": 0.95
+      },
+      "page": 2,
+      "quote": "测试功率区间：30W–40W，样品在 30W、36W、40W 三个功率点完成测试，驱动电源 DRV-A。"
+    }
+  }
+}
