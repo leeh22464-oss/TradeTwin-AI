@@ -21,6 +21,54 @@ export interface ParsedUpload {
   error?: string;
 }
 
+function repairMultipartFilename(filename: string): string {
+  // Multer defaults to Latin-1 for legacy multipart filename parameters. A
+  // UTF-8 filename then arrives as a one-byte-per-codepoint string. Repair
+  // only when every codepoint can be represented by one Latin-1 byte and a
+  // fatal UTF-8 decode round-trips to exactly those bytes. Genuine Unicode
+  // names and real Latin-1 names are preserved.
+  const codepoints = Array.from(filename, (character) => character.codePointAt(0) as number);
+  if (codepoints.some((codepoint) => codepoint > 0xff)) return filename;
+  const bytes = Uint8Array.from(codepoints);
+  try {
+    const repaired = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const roundTrip = Buffer.from(repaired, 'utf8');
+    return Buffer.compare(roundTrip, Buffer.from(bytes)) === 0 ? repaired : filename;
+  } catch {
+    return filename;
+  }
+}
+
+export function sanitizeUploadFilename(filename: string): string {
+  return filename.replace(/[\\/]/g, '_');
+}
+
+export function normalizeLegacyUploadFilename(filename: string): string {
+  return sanitizeUploadFilename(repairMultipartFilename(filename));
+}
+
+/**
+ * Repair display metadata from uploads created before the multipart charset
+ * fix. This is intentionally a read-time copy: it does not rewrite the
+ * database, source bytes, page text, coverage, or verification state.
+ */
+export function normalizeUploadedReportDisplay(report: EvidenceReport): EvidenceReport {
+  if (report.source !== 'uploaded' || report.filenameEncoding === 'utf-8') return report;
+  const filename = normalizeLegacyUploadFilename(report.filename);
+  if (filename === report.filename) return report;
+  const oldFallbackTitle = basename(report.filename, extname(report.filename));
+  // The old parser passed a lower-cased extension to basename(), so a
+  // historical `…TXT` filename could have retained `.TXT` in its fallback
+  // title. Accept both historical forms while still preserving explicit
+  // titles.
+  const legacyLowercaseExtensionTitle = basename(report.filename, extname(report.filename).toLocaleLowerCase());
+  const next: EvidenceReport = { ...report, filename };
+  if (report.title === oldFallbackTitle || report.title === legacyLowercaseExtensionTitle) {
+    next.title = basename(filename, extname(filename));
+  }
+  return next;
+}
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -175,7 +223,8 @@ async function extractPdf(buffer: Buffer): Promise<{ text: string; pages: Eviden
 }
 
 export async function parseUpload(input: UploadInput): Promise<ParsedUpload> {
-  const ext = extname(input.originalname).toLocaleLowerCase();
+  const originalname = sanitizeUploadFilename(input.originalname);
+  const ext = extname(originalname).toLocaleLowerCase();
   const allowed = new Set(['.txt', '.md', '.markdown', '.json', '.pdf']);
   if (!allowed.has(ext)) throw new Error('只支持 TXT、MD、JSON、PDF 文件');
   if (input.buffer.byteLength > MAX_UPLOAD_BYTES) throw new Error('文件超过 10MB 限制');
@@ -243,11 +292,12 @@ export async function parseUpload(input: UploadInput): Promise<ParsedUpload> {
   }
   const report: EvidenceReport = {
     id,
-    title: structured.title ?? basename(input.originalname, ext),
-    kind: structured.kind ?? kindFor(input.originalname, text),
+    title: structured.title ?? basename(originalname, extname(originalname)),
+    kind: structured.kind ?? kindFor(originalname, text),
     source: 'uploaded',
     status,
-    filename: input.originalname,
+    filename: originalname,
+    filenameEncoding: 'utf-8',
     pageCount,
     pages,
     coverage: structured.coverage ?? draftCoverageFromText(text),

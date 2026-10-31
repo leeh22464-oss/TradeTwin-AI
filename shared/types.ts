@@ -13,7 +13,7 @@ export interface Coverage {
 export interface EvidenceReport {
   id: string; title: string; kind: 'safety' | 'emc' | 'rohs' | 'spec' | 'doc' | 'label' | 'manual' | 'other';
   source: 'synthetic' | 'uploaded'; status: 'ready' | 'needs_review' | 'failed';
-  filename: string; pageCount: number; pages: EvidencePage[]; coverage: Coverage;
+  filename: string; filenameEncoding?: 'utf-8'; pageCount: number; pages: EvidencePage[]; coverage: Coverage;
   verified: boolean; notes: string; createdAt: string;
   testScopes?: Record<string, { coverage: Coverage; page: number; quote?: string }>;
 }

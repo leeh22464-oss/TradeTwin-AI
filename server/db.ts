@@ -13,6 +13,7 @@ import type {
   ModelStatus,
   RuleDefinition,
 } from '../shared/types.js';
+import { normalizeUploadedReportDisplay } from './documents.js';
 
 export interface DatabaseOptions {
   dataDir?: string;
@@ -172,12 +173,15 @@ export class AppDatabase {
     const row = this.sqlite.prepare('SELECT data_json, source_path FROM reports WHERE id = ?').get(id) as Row | undefined;
     if (!row) return null;
     const report = rowData<EvidenceReport | null>(row, null);
-    return report ? { report, sourcePath: typeof row.source_path === 'string' ? row.source_path : null } : null;
+    return report ? { report: normalizeUploadedReportDisplay(report), sourcePath: typeof row.source_path === 'string' ? row.source_path : null } : null;
   }
 
   listReports(): EvidenceReport[] {
     const rows = this.sqlite.prepare('SELECT data_json FROM reports ORDER BY created_at ASC').all() as Row[];
-    return rows.map((row) => rowData<EvidenceReport | null>(row, null)).filter((item): item is EvidenceReport => !!item);
+    return rows.map((row) => {
+      const report = rowData<EvidenceReport | null>(row, null);
+      return report ? normalizeUploadedReportDisplay(report) : null;
+    }).filter((item): item is EvidenceReport => !!item);
   }
 
   saveReport(report: EvidenceReport, sourcePath: string | null): EvidenceReport {

@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { CaseRecord, EvidenceReport } from '../shared/types.js';
+import { AppDatabase } from '../server/db.js';
 import { createApp } from '../server/index.js';
-import { parseUpload } from '../server/documents.js';
+import { normalizeUploadedReportDisplay, parseUpload } from '../server/documents.js';
 
 interface StartedApp {
   server: Server;
@@ -286,6 +287,114 @@ describe('TradeTwin API', () => {
     expect(verified.response.status).toBe(200);
     expect(verified.body.verified).toBe(true);
     expect(verified.body.status).toBe('ready');
+  });
+
+  it('normalizes uploaded report filenames and keeps explicit titles and Unicode names', async () => {
+    const mojibakeName = `${Buffer.from('中文报告', 'utf8').toString('latin1')}.txt`;
+    const repairedFilename = await parseUpload({
+      originalname: '中文报告.txt',
+      mimetype: 'text/plain',
+      buffer: Buffer.from('NL-L 24W IP20', 'utf8'),
+    });
+    expect(repairedFilename.report.filename).toBe('中文报告.txt');
+    expect(repairedFilename.report.title).toBe('中文报告');
+
+    const form = new FormData();
+    form.append('file', new Blob(['中文报告 NL-L 24W IP20'], { type: 'text/plain' }), '中文报告.txt');
+    const uploaded = await request(started.baseUrl, '/api/reports', { method: 'POST', body: form });
+    expect(uploaded.response.status).toBe(201);
+    expect(uploaded.body.filename).toBe('中文报告.txt');
+    expect(uploaded.body.filenameEncoding).toBe('utf-8');
+    const source = await request(started.baseUrl, `/api/reports/${uploaded.body.id}/file`);
+    expect(source.response.status).toBe(200);
+    expect(source.body).toContain('中文报告 NL-L 24W IP20');
+
+    const literalNameForm = new FormData();
+    literalNameForm.append('file', new Blob(['NL-L 24W IP20'], { type: 'text/plain' }), 'Â£.txt');
+    const literalNameUpload = await request(started.baseUrl, '/api/reports', { method: 'POST', body: literalNameForm });
+    expect(literalNameUpload.response.status).toBe(201);
+    expect(literalNameUpload.body.filename).toBe('Â£.txt');
+    expect(literalNameUpload.body.title).toBe('Â£');
+    expect(literalNameUpload.body.filenameEncoding).toBe('utf-8');
+    const bootstrapAfterLiteralName = await request(started.baseUrl, '/api/bootstrap');
+    const displayedLiteralName = (bootstrapAfterLiteralName.body.reports as EvidenceReport[]).find((report) => report.id === literalNameUpload.body.id);
+    expect(displayedLiteralName?.filename).toBe('Â£.txt');
+    expect(displayedLiteralName?.title).toBe('Â£');
+
+    const { filenameEncoding: _filenameEncoding, ...uploadedWithoutEncoding } = uploaded.body as EvidenceReport;
+    const legacy = {
+      ...uploadedWithoutEncoding,
+      filename: mojibakeName,
+      title: mojibakeName.slice(0, -4),
+    };
+    const repaired = normalizeUploadedReportDisplay(legacy);
+    expect(repaired.filename).toBe('中文报告.txt');
+    expect(repaired.title).toBe('中文报告');
+    expect(legacy.filename).toBe(mojibakeName);
+    expect(legacy.title).toBe(mojibakeName.slice(0, -4));
+    const customTitle = normalizeUploadedReportDisplay({ ...legacy, title: '工程师自定义标题' });
+    expect(customTitle.filename).toBe('中文报告.txt');
+    expect(customTitle.title).toBe('工程师自定义标题');
+
+    const explicitJson = await parseUpload({
+      originalname: '中文报告.JSON',
+      mimetype: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ title: '明确的 JSON 标题', pages: [{ page: 1, text: 'NL-L 24W' }] }), 'utf8'),
+    });
+    expect(explicitJson.report.filename).toBe('中文报告.JSON');
+    expect(explicitJson.report.title).toBe('明确的 JSON 标题');
+
+    for (const filename of ['Prüfbericht über Wärme.txt', '📄-报告.txt', 'café.txt']) {
+      const healthy = await parseUpload({ originalname: filename, mimetype: 'text/plain', buffer: Buffer.from('NL-L 24W IP20', 'utf8') });
+      expect(healthy.report.filename).toBe(filename);
+      expect(healthy.report.title).toBe(filename.slice(0, -4));
+    }
+  });
+
+  it('normalizes historical report metadata through DB reads without rewriting raw rows', async () => {
+    const mojibakeStem = Buffer.from('中文报告', 'utf8').toString('latin1');
+    const mojibakeName = `${mojibakeStem}.TXT`;
+    const legacyDir = await mkdtemp(join(tmpdir(), 'tradetwin-legacy-report-'));
+    let legacyDb: AppDatabase | null = null;
+    let legacyApp: ReturnType<typeof createApp> | null = null;
+    let legacyServer: Server | null = null;
+    try {
+      legacyDb = new AppDatabase({ dataDir: legacyDir });
+      const seed = await parseUpload({ originalname: '历史报告.txt', mimetype: 'text/plain', buffer: Buffer.from('NL-L 24W IP20', 'utf8') });
+      const { filenameEncoding: _seedFilenameEncoding, ...seedWithoutEncoding } = seed.report;
+      const legacyReport = { ...seedWithoutEncoding, filename: mojibakeName, title: mojibakeName };
+      legacyDb.saveReport(legacyReport, null);
+      const rawBefore = legacyDb.sqlite.prepare('SELECT data_json, updated_at FROM reports WHERE id = ?').get(legacyReport.id) as { data_json: string; updated_at: string };
+
+      const helperStem = normalizeUploadedReportDisplay({ ...legacyReport, title: mojibakeStem });
+      expect(helperStem.filename).toBe('中文报告.TXT');
+      expect(helperStem.title).toBe('中文报告');
+      const helperLegacy = normalizeUploadedReportDisplay(legacyReport);
+      expect(helperLegacy.filename).toBe('中文报告.TXT');
+      expect(helperLegacy.title).toBe('中文报告');
+      expect(normalizeUploadedReportDisplay({ ...legacyReport, title: '工程师自定义标题' }).title).toBe('工程师自定义标题');
+
+      legacyApp = createApp({ dataDir: legacyDir, seed: false });
+      legacyServer = createServer(legacyApp);
+      await new Promise<void>((resolve, reject) => {
+        legacyServer!.once('error', reject);
+        legacyServer!.listen(0, '127.0.0.1', resolve);
+      });
+      const legacyAddress = legacyServer.address() as AddressInfo;
+      const legacyBootstrap = await request(`http://127.0.0.1:${legacyAddress.port}`, '/api/bootstrap');
+      const displayed = (legacyBootstrap.body.reports as EvidenceReport[]).find((report) => report.id === legacyReport.id);
+      expect(displayed?.filename).toBe('中文报告.TXT');
+      expect(displayed?.title).toBe('中文报告');
+      const direct = legacyApp.locals.db.getReport(legacyReport.id);
+      expect(direct?.report.filename).toBe('中文报告.TXT');
+      const rawAfter = legacyDb.sqlite.prepare('SELECT data_json, updated_at FROM reports WHERE id = ?').get(legacyReport.id) as { data_json: string; updated_at: string };
+      expect(rawAfter).toEqual(rawBefore);
+    } finally {
+      if (legacyServer?.listening) await new Promise<void>((resolve, reject) => legacyServer!.close((error) => error ? reject(error) : resolve()));
+      legacyApp?.locals.db.close();
+      legacyDb?.close();
+      await rm(legacyDir, { recursive: true, force: true });
+    }
   });
 
   it('records manual override, supports knowledge, export, and visible model fallback', async () => {

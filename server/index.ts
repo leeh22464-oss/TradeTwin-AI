@@ -342,6 +342,9 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   const upload = multer({
     storage: multer.memoryStorage(),
+    // Modern browsers send UTF-8 multipart filenames. Multer's default is
+    // Latin-1 for legacy forms, which turns Chinese names into mojibake.
+    defParamCharset: 'utf8',
     limits: { fileSize: MAX_UPLOAD_BYTES },
   });
 
@@ -481,7 +484,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.post('/api/reports', upload.single('file'), asyncRoute(async (req, res) => {
     if (!req.file) throw new HttpError(400, '请上传 file 文件字段');
     const parsed = await parseUpload({ originalname: req.file.originalname, mimetype: req.file.mimetype, buffer: req.file.buffer });
-    const extension = extname(req.file.originalname).toLocaleLowerCase() || '.bin';
+    const extension = extname(parsed.report.filename).toLocaleLowerCase() || '.bin';
     const storedPath = join(db.uploadsDir, `${parsed.report.id}${extension}`);
     await mkdir(db.uploadsDir, { recursive: true });
     await writeFile(storedPath, req.file.buffer, { flag: 'wx' });
