@@ -46,6 +46,7 @@ class Element {
 
 const inbound = (text: string) => new Element('div', { 'data-message-direction': 'incoming' }, text);
 const outbound = (text: string) => new Element('div', { 'data-message-direction': 'outgoing' }, text);
+const buyer42 = 'https://message.alibaba.com/chat?buyerId=42';
 function content(options: { selection?: string; nodes?: Element[]; active?: Element; url?: string } = {}) {
   const root = new Element().add(...(options.nodes || []));
   if (options.active && !root.contains(options.active)) root.add(options.active);
@@ -59,7 +60,7 @@ function content(options: { selection?: string; nodes?: Element[]; active?: Elem
   };
   runInNewContext(readFileSync(new URL('../workflow-1/extension/content.js', import.meta.url), 'utf8'), {
     window: { getSelection: () => options.selection || '' }, document,
-    location: new URL(options.url || 'https://message.alibaba.com/chat'), URL, URLSearchParams, Event,
+    location: new URL(options.url || buyer42), URL, URLSearchParams, Event,
     getComputedStyle: (el: Element) => el.style,
     chrome: { runtime: { onMessage: { addListener: (fn: typeof listener) => { listener = fn; } } } },
   });
@@ -95,13 +96,13 @@ describe('Alibaba content-script message boundary', () => {
     expect(two).toBe('https://message.alibaba.com/chat?buyerId=two');
   });
   it('uses credible DOM identity and refuses pathname-only identity', () => {
-    expect(content({ nodes: [new Element('div', { 'data-thread-id': 'thread-42' })] })('tt-read').conversationKey)
+    expect(content({ url: 'https://message.alibaba.com/chat', nodes: [new Element('div', { 'data-thread-id': 'thread-42' })] })('tt-read').conversationKey)
       .toBe('https://message.alibaba.com/chat#data-thread-id=thread-42');
-    expect(content()('tt-read').conversationKey).toBeNull();
+    expect(content({ url: 'https://message.alibaba.com/chat' })('tt-read').conversationKey).toBeNull();
   });
   it('refuses search inputs and arbitrary editable fields without events', () => {
     for (const active of [new Element('input', { type: 'search' }), new Element('textarea'), new Element('div', { contenteditable: 'true' })]) {
-      expect(content({ active })('tt-insert', { text: 'draft' }).ok).toBe(false);
+      expect(content({ active })('tt-insert', { text: 'draft', expectedConversationKey: buyer42 }).ok).toBe(false);
       expect(active.events).toEqual([]);
     }
   });
@@ -109,14 +110,14 @@ describe('Alibaba content-script message boundary', () => {
     for (const flag of ['hidden', 'isConnected'] as const) {
       const active = new Element('textarea', { 'aria-label': 'Reply message' });
       active[flag] = flag === 'hidden';
-      expect(content({ active })('tt-insert', { text: 'draft' }).ok).toBe(false);
+      expect(content({ active })('tt-insert', { text: 'draft', expectedConversationKey: buyer42 }).ok).toBe(false);
       expect(active.events).toEqual([]);
     }
   });
   it('fills a trusted composer with only input/change events and reads its draft', () => {
     const active = new Element('textarea', { 'aria-label': 'Reply message' });
     const dispatch = content({ active });
-    expect(dispatch('tt-insert', { text: 'review before sending' })).toMatchObject({ ok: true });
+    expect(dispatch('tt-insert', { text: 'review before sending', expectedConversationKey: buyer42 })).toMatchObject({ ok: true });
     expect(active.value).toBe('review before sending');
     expect(dispatch('tt-read-draft')).toMatchObject({ text: 'review before sending' });
     expect(active.events).toEqual(['input', 'change']);
@@ -124,10 +125,30 @@ describe('Alibaba content-script message boundary', () => {
   it('trusts a nearby composer container but rejects a search editor inside it', () => {
     const editor = new Element('div', { contenteditable: 'true' });
     const container = new Element('div', { class: 'message-composer' }).add(editor);
-    expect(content({ nodes: [container], active: editor })('tt-insert', { text: 'draft' }).ok).toBe(true);
+    expect(content({ nodes: [container], active: editor })('tt-insert', { text: 'draft', expectedConversationKey: buyer42 }).ok).toBe(true);
     expect(editor.innerText).toBe('draft');
     const search = new Element('textarea', { 'aria-label': 'Search messages' });
-    expect(content({ nodes: [new Element('div', { class: 'message-composer' }).add(search)], active: search })('tt-insert', { text: 'draft' }).ok).toBe(false);
+    expect(content({ nodes: [new Element('div', { class: 'message-composer' }).add(search)], active: search })('tt-insert', { text: 'draft', expectedConversationKey: buyer42 }).ok).toBe(false);
+  });
+  it('refuses missing or unknown insertion identity without mutating a trusted composer', () => {
+    for (const url of [buyer42, 'https://message.alibaba.com/chat']) {
+      const active = new Element('textarea', { 'aria-label': 'Reply message' });
+      const dispatch = content({ active, url });
+      expect(dispatch('tt-insert', { text: 'confidential' }).ok).toBe(false);
+      expect(dispatch('tt-insert', { text: 'confidential', expectedConversationKey: 'https://message.alibaba.com/chat' }).ok).toBe(false);
+      expect(active.value).toBe('');
+      expect(active.events).toEqual([]);
+    }
+  });
+  it('rechecks the live SPA conversation immediately before insertion', () => {
+    const active = new Element('textarea', { 'aria-label': 'Reply message' });
+    const identity = new Element('div', { 'data-thread-id': 'buyer-A' });
+    const dispatch = content({ active, nodes: [identity], url: 'https://message.alibaba.com/chat' });
+    const expectedConversationKey = dispatch('tt-read').conversationKey;
+    identity.attrs['data-thread-id'] = 'buyer-B';
+    expect(dispatch('tt-insert', { text: 'Buyer A confidential quote', expectedConversationKey }).ok).toBe(false);
+    expect(active.value).toBe('');
+    expect(active.events).toEqual([]);
   });
 });
 
@@ -139,6 +160,8 @@ async function panel(options: { page?: any; tabId?: number; saved?: any; syncFai
   const writes: any[] = [];
   const copies: string[] = [];
   const pageMessages: string[] = [];
+  const sent: { id: number; message: any }[] = [];
+  const nextQueryTabs: number[] = [];
   const tab = { id: options.tabId || 7, url: 'https://message.alibaba.com/chat' };
   const page = options.page || { selection: '', recent: 'Exact buyer request\n36W / IP44', source: 'recent', conversationKey: 'https://message.alibaba.com/chat?buyerId=42' };
   const result = { session_id: 'session-42', run_id: 'run-1', round: 1, extraction: { method: 'rules', language: 'en' },
@@ -152,13 +175,13 @@ async function panel(options: { page?: any; tabId?: number; saved?: any; syncFai
       return { ok, status: ok ? 200 : 503, json: async () => url.endsWith('/health') ? { llm_configured: false } : url.endsWith('/sync') ? {} : url.endsWith('/check') ? { level: 'green', annotations: [] } : result };
     },
     chrome: {
-      tabs: { query: async () => [tab], sendMessage: async (_id: number, msg: any) => { pageMessages.push(msg.type); return msg.type === 'tt-read' ? page : { ok: !!options.insertOk }; } },
+      tabs: { query: async () => [{ ...tab, id: nextQueryTabs.shift() ?? tab.id }], sendMessage: async (id: number, msg: any) => { sent.push({ id, message: msg }); pageMessages.push(msg.type); return msg.type === 'tt-read' ? page : { ok: !!options.insertOk }; } },
       scripting: { executeScript: async () => [] },
       storage: { local: { get: async () => options.saved || {}, set: async (value: any) => { writes.push(JSON.parse(JSON.stringify(value))); } } },
     },
   });
   await new Promise((resolve) => setImmediate(resolve));
-  return { $, calls, copies, writes, page, tab, pageMessages, click: async (id: string) => { const el = $(id); await el.listeners.click({ target: el }); await new Promise((resolve) => setImmediate(resolve)); } };
+  return { $, calls, copies, writes, page, tab, pageMessages, sent, nextQueryTabs, click: async (id: string) => { const el = $(id); await el.listeners.click({ target: el }); await new Promise((resolve) => setImmediate(resolve)); } };
 }
 
 describe('extension panel integration', () => {
@@ -208,6 +231,24 @@ describe('extension panel integration', () => {
     await p.click('#btn-read'); await p.click('#btn-analyze'); await p.click('#btn-analyze');
     expect(p.calls.filter((c) => c.url.endsWith('/analyze')).map((c) => c.body.session_id)).toEqual([null, null]);
     expect(Object.keys(p.writes.at(-1).sessions).every((key) => key.includes('tab=7'))).toBe(true);
+  });
+  it('inserts into the verified tab even if the next active-tab query would select another tab', async () => {
+    const p = await panel({ insertOk: true });
+    await p.click('#btn-read'); await p.click('#btn-analyze');
+    p.$('#reply-body').value = 'Buyer A confidential quote';
+    p.nextQueryTabs.push(7, 8);
+    await p.click('#btn-insert');
+    expect(p.sent.filter((entry) => entry.message.type === 'tt-insert')).toEqual([
+      { id: 7, message: { type: 'tt-insert', text: 'Buyer A confidential quote', expectedConversationKey: buyer42 } },
+    ]);
+    expect(p.copies).toEqual([]);
+  });
+  it('copies instead of inserting when no conversation identity is known', async () => {
+    const p = await panel({ insertOk: true, page: { selection: 'buyer', source: 'selection', conversationKey: null } });
+    p.$('#reply-body').value = 'manual draft';
+    await p.click('#btn-insert');
+    expect(p.pageMessages).not.toContain('tt-insert');
+    expect(p.copies).toEqual(['manual draft']);
   });
   it('falls back to clipboard when page refuses insertion', async () => {
     const p = await panel(); p.$('#reply-body').value = 'manual paste';

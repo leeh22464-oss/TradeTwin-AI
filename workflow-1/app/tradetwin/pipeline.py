@@ -17,6 +17,8 @@ FIELD_LABELS = {
     "quantity": "订单数量",
     "delivery": "交期要求",
     "installation": "安装环境",
+    "material": "材料组合",
+    "market": "目标市场",
 }
 OWNER_LABELS = {
     "SALES": "外贸业务",
@@ -98,6 +100,15 @@ def merge_request(prev: dict | None, extraction: dict, kb) -> dict:
     for key in extract.EXTRA_FIELDS:
         if fields[key]["value"] is not None:
             req[key] = fields[key]["value"]
+    req.setdefault("scope_fields", {})
+    for key in extract.SCOPE_FIELDS:
+        field = fields.get(key, {})
+        if field.get("value") is not None:
+            previous = req["scope_fields"].get(key, {})
+            if (key == "market" and previous.get("status") == "changed" and field.get("status") == "unchanged"
+                    and not field.get("baseline_confirmed")):
+                continue
+            req["scope_fields"][key] = copy.deepcopy(field)
     return req
 
 
@@ -122,6 +133,28 @@ def _questions(req: dict, mode: str, kb) -> list[str]:
 
 EMPTY_COVERAGE = {"findings": [], "document_updates": [], "manual_review_required": True, "retest_items": [],
                   "retest_details": {}, "owner_actions": [], "issues": []}
+
+
+def _scope_review(req: dict, kb) -> dict | None:
+    unsupported = {key: field for key, field in req.get("scope_fields", {}).items()
+                   if field.get("status") != "unchanged"}
+    if not unsupported:
+        return None
+    review = copy.deepcopy(EMPTY_COVERAGE)
+    for key, field in unsupported.items():
+        reason = f"买家要求{FIELD_LABELS[key]}：{field['value']}；当前工作流二契约仅支持德国市场与原材料组合，须核验实际范围"
+        review["findings"].append({"item_key": key + "_scope", "item": FIELD_LABELS[key],
+                                   "status": "MANUAL_REVIEW", "reason": reason,
+                                   "source_quote": field["source_quote"], "evidence": [],
+                                   "rule_refs": ["WF1-SUPPORTED-SCOPE"]})
+        review["issues"].append({"code": "UNSUPPORTED_REQUEST_SCOPE", "field": key,
+                                 "finding": reason, "requested_value": field["value"],
+                                 "source_quote": field["source_quote"], "evidence": []})
+        review["owner_actions"].append({"owner_role": "QUALITY_COMPLIANCE", "action": reason})
+    review.update(estimated_cost_eur=None, estimated_days=None, days_breakdown={},
+                  synthetic=True, human_confirmed=False, source_type="request_scope_review",
+                  assumption_version=kb.commercial["assumption_version"])
+    return review
 
 
 def _owner_actions(primary: dict, mode: str, opts: list[dict]) -> list[dict]:
@@ -180,6 +213,10 @@ def _change_order(req: dict, extraction: dict, kb) -> list[dict]:
             rows.append({"field": key, "label": FIELD_LABELS[key], "from": None, "to": req[key],
                          "status": "provided" if fields[key]["value"] is not None else "carried",
                          "source_quote": fields[key].get("source_quote")})
+    for key, field in req.get("scope_fields", {}).items():
+        rows.append({"field": key, "label": FIELD_LABELS[key], "from": "original-material" if key == "material" else "DE",
+                     "to": field["value"], "status": field["status"] if fields.get(key, {}).get("value") is not None else "carried",
+                     "source_quote": field["source_quote"]})
     return rows
 
 
@@ -190,6 +227,7 @@ def _facts_numbers(opts: list[dict], kb) -> dict:
     return {
         "money": [o["unit_price_eur"] for o in priced] + [o["estimated_cost_eur"] for o in priced],
         "days": [o["lead_time_working_days"] for o in priced] + [o["estimated_days"] for o in priced],
+        "delivery_approved": bool(priced),
         "watts": [o["config"]["power_w"] for o in opts if o["config"].get("power_w") is not None]
                   + [kb.product["rated_power_w"], cov["min"], cov["max"]],
         "retest_required_all": bool(priced) and all(o["retest_items"] for o in priced),
@@ -239,6 +277,8 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
     wf2_meta = {"contract_version": workflow2.CONTRACT_VERSION, "provider": workflow2.provider_name(),
                 "ok": True, "error": None, "warnings": [], "rule_version": None, "evidence_version": None}
     selected_option, opts, primary = None, [], None
+    scope_review = _scope_review(req, kb)
+    primary = scope_review
     missing_core = req["power_w"] is None or req["ip_rating"] is None
 
     try:
@@ -252,6 +292,15 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
                     selected_config[key] = req[key]
             req = {**req, **selected_config}
             req["driver_status"] = "changed" if selected_config["driver"] != base["driver_model"] else "unchanged"
+        if scope_review:
+            plans = ({selected: (prior["kind"], selected_config)} if prior else options.plan(req, env)
+                     if not missing_core else {"A": ("requested", {key: req[key] for key in extract.TECH_FIELDS})})
+            opts = [options.build_option(oid, option_kind, {**scope_review, "config": cfg}, quantity, baseline, kb)
+                    for oid, (option_kind, cfg) in plans.items()]
+            selected_option = opts[0] if prior else None
+            ev = {"rule_version": env["rule_version"], "evidence_version": env["evidence_version"], "warnings": []}
+            mode = "pending_check"
+        elif prior:
             ev = workflow2.evaluate({selected: selected_config})
             selected_option = options.build_option(selected, prior["kind"], ev["results"][selected], quantity, baseline, kb)
             mode, opts = "confirm_selected", [selected_option]
@@ -273,7 +322,7 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
                         warnings=ev["warnings"])
     except workflow2.Workflow2Error as exc:
         wf2_meta.update(ok=False, error=str(exc))
-        mode = "incomplete" if missing_core else "pending_check"
+        mode = "incomplete" if missing_core and not scope_review else "pending_check"
         selected_option, opts = None, []
 
     all_options = opts
@@ -299,6 +348,7 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
         "subject": session.get("subject"),
         "baseline": baseline_view(kb),
         "requested_config": {key: req[key] for key in extract.TECH_FIELDS},
+        "scope_review": bool(scope_review),
         "mode": mode,
         "options": opts,
         "selected_option": selected_option,
@@ -323,6 +373,9 @@ def _build(session: dict, req: dict, extraction: dict, selected: str | None, inp
         "created_at": _now(),
         "scope": {"market": kb.manifest["scope"]["market"], "product_scope": kb.manifest["scope"]["product_scope"],
                   "rule_version": wf2_meta["rule_version"], "evidence_version": wf2_meta["evidence_version"],
+                  "requested_market": req.get("scope_fields", {}).get("market", {}).get("value", "DE"),
+                  "requested_material": req.get("scope_fields", {}).get("material", {}).get("value", "original-material"),
+                  "request_scope_supported": not bool(scope_review),
                   "pricing_version": kb.commercial["assumption_version"]},
         "workflow2": wf2_meta,
         "status": status,
@@ -382,14 +435,15 @@ def analyze_message(text: str, session_id: str | None = None, channel: str = "em
     if languages:
         session["languages"] = [x for x in languages if x in ("en", "de")] or session["languages"]
 
+    extraction = extract.extract(text, kb.product)
+    req = merge_request(session.get("request"), extraction, kb)
     key = _key("message", session["session_id"], text, channel, session["languages"],
-               session["constraints"], kb.rule_version, _evidence_version(), workflow2.provider_name(), llm.model_name())
+               session["constraints"], req.get("scope_fields", {}),
+               kb.rule_version, _evidence_version(), workflow2.provider_name(), llm.model_name())
     if key in session["cache"]:
         cached = session["cache"][key]
         return {**cached, "idempotent_replay": True}
 
-    extraction = extract.extract(text, kb.product)
-    req = merge_request(session.get("request"), extraction, kb)
     input_meta = {"text": text, "source": source, "language": extraction["language"]}
     result = _build(session, req, extraction, extraction["selected_option"], input_meta, "buyer_message")
     _remember(session, key, result)
@@ -420,7 +474,8 @@ def apply_instruction(session_id: str, instruction: str) -> dict:
 
     technical = extract.extract(instruction, kb.product)
     parsed = extract.parse_instruction(instruction)
-    has_technical = any(technical["fields"][k].get("value") is not None for k in extract.TECH_FIELDS + extract.EXTRA_FIELDS)
+    has_technical = any(technical["fields"][k].get("value") is not None
+                        for k in extract.TECH_FIELDS + extract.EXTRA_FIELDS + extract.SCOPE_FIELDS)
     if all(v is None for v in parsed.values()) and not has_technical:
         raise PipelineError("没有识别出可执行的修改。可以尝试：选方案A / 先不要承诺交期 / 只要德语 / 改成邮件风格")
     if parsed["hide_delivery_date"] is not None:

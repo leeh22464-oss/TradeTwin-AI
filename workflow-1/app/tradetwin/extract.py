@@ -25,6 +25,75 @@ SENTENCE_RE = re.compile(r"[^.!?。！？\n]+")
 
 TECH_FIELDS = ("power_w", "ip_rating", "driver")
 EXTRA_FIELDS = ("quantity", "delivery", "installation")
+SCOPE_FIELDS = ("material", "market")  # Preserved locally; outside the restricted WF2 v1 config contract.
+MATERIAL_TOKEN_RE = re.compile(r"(?<![A-Za-z])(?:PVC|ABS|polycarbonate|silicone|alumin(?:i)?um|steel)(?![A-Za-z])", re.I)
+MATERIAL_WORD_RE = re.compile(r"\bmaterials?\b|\bWerkstoff\w*|\bMaterial\w*|材料|材质", re.I)
+ORIGINAL_MATERIAL_RE = re.compile(
+    r"\boriginal-material\b|\b(?:same\s+)?(?:original|baseline)\s+materials?\b|"
+    r"\b(?:ursprünglich\w*|Original)\s*material\w*|(?:原(?:来|始)?材料|原材质|原材料组合)(?:不变)?", re.I)
+SAME_MATERIAL_RE = re.compile(r"\bsame\s+materials?\b|\bgleich\w*\s+Material\w*|材料不变|材质不变", re.I)
+SCOPE_NEGATION_RE = re.compile(r"\b(?:not|no|without|nicht|kein\w*)\b|不要|不再|不用|不使用", re.I)
+MARKET_WORD_RE = re.compile(r"\b(?:target\s+)?market\b|\bZielmarkt\b|\bMarkt\b|目标市场|市场|销往|出口到", re.I)
+COUNTRY_RE = re.compile(
+    r"\bUnited States\b|\bUSA\b|\bUS\b|\bU\.S\.(?:A\.)?|\bVereinigte[n]? Staaten\b|美国|"
+    r"\bGermany\b|\bDeutschland\b|德国|\bDE\b|\bCanada\b|加拿大|\bKanada\b|"
+    r"\bFrance\b|法国|\bFrankreich\b|\bUnited Kingdom\b|\bUK\b|英国|\bChina\b|中国", re.I)
+MARKET_PREFIX_RE = re.compile(
+    r"(?:\b(?:target\s+)?market\b|\bZielmarkt\b|\bMarkt\b|目标市场|市场)"
+    r"\s*(?:(?:is|remains|to|back to|ist|bleibt|auf|改为|改回|恢复为|为|是)\s*)?[:：=-]?\s*(?:the\s+)?$", re.I)
+MARKET_SUFFIX_RE = re.compile(r"^\s*(?:market\b|Markt\b|市场)", re.I)
+MARKET_RETURN_RE = re.compile(
+    r"\b(?:return|back)\s+to\s+(?:the\s+)?$|"
+    r"\b(?:ship|export|sell)\s+to\s+(?:the\s+)?$|销往\s*$|出口到\s*$|改回\s*$|恢复\s*$", re.I)
+
+
+def scope_fields(text: str) -> dict:
+    """Retain explicit scope facts; only explicit original-material / German scope confirms baseline."""
+    result = {}
+    # Clause boundaries keep a negation about one scope field from resolving a different field.
+    clauses = re.split(r"[.!?。！？;；\n]+", text)
+    for clause in clauses:
+        token = MATERIAL_TOKEN_RE.search(clause)
+        word = MATERIAL_WORD_RE.search(clause)
+        original = ORIGINAL_MATERIAL_RE.search(clause)
+        negated = bool(SCOPE_NEGATION_RE.search(clause))
+        if token:
+            value = token.group(0).upper() if token.group(0).upper() in ("PVC", "ABS") else token.group(0)
+            result["material"] = {"value": value, "status": "changed", "source_quote": token.group(0)}
+        elif original and not negated:
+            value = "original-material" if original.group(0).lower() == "original-material" else "original"
+            result["material"] = {"value": value, "status": "unchanged", "source_quote": original.group(0)}
+        elif word and not (SAME_MATERIAL_RE.search(clause) and not negated):
+            result["material"] = {"value": clause.strip(), "status": "changed", "source_quote": clause.strip()}
+
+        # Bind context to each country, rather than treating any "for" / "market"
+        # elsewhere in the clause as confirmation. This also excludes the pronoun "us".
+        countries = []
+        for match in COUNTRY_RE.finditer(clause):
+            before, after = clause[:match.start()], clause[match.end():]
+            market_context = bool(MARKET_PREFIX_RE.search(before) or MARKET_SUFFIX_RE.search(after))
+            # "return to us" is still a pronoun; lowercase US needs a market label.
+            destination = bool(MARKET_RETURN_RE.search(before) and match.group(0) != "us")
+            explicit = market_context or destination
+            # Retain the supported original-material / Germany shorthand without
+            # allowing a bare country to resolve an earlier explicit market hold.
+            shorthand = bool(original and before.rstrip().endswith("/") and not after.strip()
+                             and not countries and "market" not in result)
+            if explicit or shorthand:
+                countries.append((match, explicit))
+        if countries:
+            country, explicit = countries[-1]
+            name = country.group(0)
+            german = name.lower() in ("germany", "deutschland", "de", "德国")
+            united_states = name.lower() in ("united states", "usa", "us", "u.s.", "u.s.a.",
+                                            "vereinigte staaten", "vereinigten staaten", "美国")
+            value = "DE" if german else "US" if united_states else name
+            result["market"] = {"value": value, "status": "unchanged" if german and not negated else "changed",
+                                "source_quote": name,
+                                "baseline_confirmed": bool(german and not negated and explicit)}
+        elif MARKET_WORD_RE.search(clause):
+            result["market"] = {"value": clause.strip(), "status": "changed", "source_quote": clause.strip()}
+    return result
 
 SYSTEM_PROMPT = """你是外贸订单变更抽取器，服务欧盟室内固定式 LED 灯具业务。
 只抽取买家明确提出的内容，不推测、不补全。每个有值的字段必须给出 source_quote：买家原文中逐字出现的片段。
@@ -37,7 +106,9 @@ SYSTEM_PROMPT = """你是外贸订单变更抽取器，服务欧盟室内固定�
     "driver": {"status": "changed|unchanged|tentative|unknown", "value": "驱动型号或DRV-NEW或null", "source_quote": "原文或null"},
     "quantity": {"value": 整数或null, "source_quote": "原文或null"},
     "delivery": {"value": "交期原文或null", "source_quote": "原文或null"},
-    "installation": {"value": "安装环境或null", "source_quote": "原文或null"}
+    "installation": {"value": "安装环境或null", "source_quote": "原文或null"},
+    "material": {"status": "changed|unchanged|unknown", "value": "材料或null", "source_quote": "原文或null"},
+    "market": {"status": "changed|unchanged|unknown", "value": "目标国家或null", "source_quote": "原文或null"}
   },
   "selected_option": "A|B|C|null"
 }
@@ -66,6 +137,7 @@ def quote_in_text(quote: str | None, text: str) -> bool:
 def _empty_fields() -> dict:
     fields = {key: {"status": "unknown", "value": None, "source_quote": None} for key in TECH_FIELDS}
     fields.update({key: {"value": None, "source_quote": None} for key in EXTRA_FIELDS})
+    fields.update({key: {"status": "unknown", "value": None, "source_quote": None} for key in SCOPE_FIELDS})
     return fields
 
 
@@ -124,6 +196,7 @@ def rule_extract(text: str, baseline: dict) -> dict:
     install = INSTALL_RE.search(text)
     if install:
         fields["installation"] = {"value": install.group(0), "source_quote": install.group(0)}
+    fields.update(scope_fields(text))
 
     option = OPTION_RE.search(text)
     return {
@@ -139,7 +212,7 @@ def _validate_llm(data: dict, text: str, baseline: dict) -> tuple[dict, list[str
     fields = _empty_fields()
     warnings: list[str] = []
     raw = data.get("fields") or {}
-    for key in TECH_FIELDS + EXTRA_FIELDS:
+    for key in TECH_FIELDS + EXTRA_FIELDS + SCOPE_FIELDS:
         item = raw.get(key) or {}
         value, quote = item.get("value"), item.get("source_quote")
         if value in (None, "", "null"):
@@ -165,6 +238,9 @@ def _validate_llm(data: dict, text: str, baseline: dict) -> tuple[dict, list[str
             warnings.append(f"{key}: 数值与原文片段不一致，已丢弃")
             continue
         entry = {"value": value, "source_quote": quote}
+        if key in SCOPE_FIELDS:
+            # The model may identify a novel value, but cannot assert support or clear a review.
+            entry["status"] = "changed"
         if key in TECH_FIELDS:
             status = item.get("status", "changed")
             allowed = ("changed", "unchanged", "tentative") if key == "driver" else ("changed", "unchanged")
@@ -192,8 +268,11 @@ def extract(text: str, baseline: dict) -> dict:
         return rules
 
     fields, warnings = _validate_llm(data, text, baseline)
-    for key in TECH_FIELDS + EXTRA_FIELDS:
+    for key in TECH_FIELDS + EXTRA_FIELDS + SCOPE_FIELDS:
         if fields[key]["value"] is None and rules["fields"][key]["value"] is not None:
+            fields[key] = rules["fields"][key]
+    for key in SCOPE_FIELDS:
+        if rules["fields"][key]["value"] is not None:
             fields[key] = rules["fields"][key]
     option = data.get("selected_option")
     option = option.upper() if isinstance(option, str) and option.upper() in ("A", "B", "C") else None

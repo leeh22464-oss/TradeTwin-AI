@@ -216,6 +216,9 @@ def render_template(lang: str, facts: dict) -> dict:
         out += ["", t["selected_close"]]
     elif mode == "pending_check":
         out.append(t["pending"].format(cfg=lead_cfg))
+        if facts.get("scope_review"):
+            out.append("We also need to verify your requested material and target-market scope before preparing a price or delivery estimate."
+                       if lang == "en" else "Vor einer Preis- oder Lieferzeitschätzung müssen wir auch den Umfang Ihrer Material- und Zielmarktanforderungen prüfen.")
         if questions:
             out += ["", t["ask"]] + [f"{i}. {q}" for i, q in enumerate(questions, 1)]
         out += ["", t["pending_close"]]

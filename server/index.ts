@@ -32,6 +32,8 @@ import {
   parseUpload,
   validateCoverageConfirmation,
 } from './documents.js';
+import { refreshWorkflow1Readiness, registerWorkflow1 } from './workflow1.js';
+import { registerWorkflow2 } from './workflow2.js';
 
 export interface AppOptions extends DatabaseOptions {
   seed?: boolean;
@@ -133,9 +135,14 @@ function audit(caseId: string, type: string, detail: unknown, fingerprint?: stri
 
 function invalidateCasesForEvidence(db: AppDatabase, detail: Record<string, unknown>): void {
   for (const item of db.listCases()) {
-    if (!item.analysis && !item.quote) continue;
+    if (!item.analysis && !item.quote && !item.workflow1QuoteReady) continue;
     item.analysis = null;
     item.quote = null;
+    if (item.workflow1Result) {
+      item.workflow1QuoteReady = false;
+      item.workflow1PendingReason = '证据已变化，请重新核验并计算报价';
+      item.unitPriceEur = 0;
+    }
     item.updatedAt = createdAt();
     db.saveCase(item);
     db.addAudit(audit(item.id, 'evidence.changed', detail));
@@ -239,6 +246,11 @@ function updateCaseFromBody(item: CaseRecord, body: Record<string, unknown>): { 
   if (changed) {
     item.analysis = null;
     item.quote = null;
+    if (item.workflow1Result) {
+      item.workflow1QuoteReady = false;
+      item.workflow1PendingReason = '案件配置或商务条件已修改，请应用到业务工作台后重新计算';
+      item.unitPriceEur = 0;
+    }
     item.updatedAt = createdAt();
   }
   return { changed, caseRecord: item };
@@ -247,7 +259,7 @@ function updateCaseFromBody(item: CaseRecord, body: Record<string, unknown>): { 
 function ensureCase(db: AppDatabase, id: string): CaseRecord {
   const item = db.getCase(id);
   if (!item) throw new HttpError(404, '案件不存在', 'CASE_NOT_FOUND');
-  return item;
+  return refreshWorkflow1Readiness(item, db);
 }
 
 async function runAnalysis(db: AppDatabase, item: CaseRecord): Promise<AnalysisResult> {
@@ -269,7 +281,7 @@ function findingSummary(finding: Finding): string {
   return `${finding.status}: ${finding.title} — ${finding.reason}${evidence ? ` [${evidence}]` : ''}`;
 }
 
-function exportMarkdown(item: CaseRecord, reports: EvidenceReport[]): string {
+function exportMarkdown(item: CaseRecord, reports: EvidenceReport[], history: AuditEvent[]): string {
   const lines: string[] = [
     `# TradeTwin AI 案件报告：${item.name}`,
     '',
@@ -317,6 +329,20 @@ function exportMarkdown(item: CaseRecord, reports: EvidenceReport[]): string {
   lines.push('', '## 证据清单', '', '| 报告 | 状态 | 已确认 | 页数 |', '|---|---|---:|---:|');
   for (const report of reports) lines.push(`| ${report.title} (${report.id}) | ${report.status} | ${report.verified ? '是' : '否'} | ${report.pageCount} |`);
   if (item.quote) lines.push('', '## 报价输出', '', '### English', '', item.quote.en, '', '### Deutsch', '', item.quote.de, '', '### 中文岗位待办', '', ...item.quote.internal.sales.map((entry) => `- 业务：${entry}`), ...item.quote.internal.quality.map((entry) => `- 品质：${entry}`), ...item.quote.internal.procurement.map((entry) => `- 采购：${entry}`));
+  if (item.workflow1Result) {
+    const result = item.workflow1Result;
+    lines.push('', '## 业务变更、方案与回复', '', `- 报价状态：${item.workflow1QuoteReady ? '报价数据已同步（合成估算，待人工审核）' : `等待证据/参数确认：${item.workflow1PendingReason ?? '请重新核验'}`}`,
+      `- 运行：${result.run_id}`, `- 已选方案：${result.selected_option_id ?? '尚未选择'}`, `- 证据版本：${item.workflow1EvidenceVersion ?? '未知'}`);
+    for (const key of ['change_order', 'quote_options', 'candidate_options', 'owner_actions', 'scope', 'workflow2']) {
+      lines.push('', `### ${key}`, '', '```json', JSON.stringify(result[key] ?? null, null, 2), '```');
+    }
+    for (const [language, value] of Object.entries(asRecord(result.replies))) {
+      const reply = asRecord(value);
+      lines.push('', `### ${language}`, '', text(reply.subject), '', text(reply.body));
+    }
+  }
+  lines.push('', '## 历史审计', '');
+  for (const event of history) lines.push(`### ${event.type} · ${event.createdAt}`, '', `- 操作者：${event.actor}`, `- 规则版本：${event.ruleVersion}`, '', '```json', event.detail, '```', '');
   lines.push('', '## 会话记录', '');
   for (const message of item.messages) lines.push(`- **${message.role}**（${message.createdAt}）：${message.content}`);
   return `${lines.join('\n')}\n`;
@@ -339,6 +365,8 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.locals.knowledgeBundle = knowledgeBundle;
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+  registerWorkflow2(app, db);
+  registerWorkflow1(app, db);
 
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -350,7 +378,11 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'ok', time: createdAt(), ruleVersion: RULE_VERSION }));
 
-  app.get('/api/bootstrap', (_req, res) => res.json(db.bootstrap(getModelStatus(), RULE_VERSION)));
+  app.get('/api/bootstrap', (_req, res) => {
+    const data = db.bootstrap(getModelStatus(), RULE_VERSION);
+    data.cases = data.cases.map((item) => refreshWorkflow1Readiness(item, db));
+    res.json(data);
+  });
 
   app.get('/api/cases/:id', (req, res) => res.json(ensureCase(db, routeParam(req.params.id))));
 
@@ -386,6 +418,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     const commitmentChanged = item.commitment !== commitment;
     item.requestedConfig = config;
     item.commitment = commitment;
+    refreshWorkflow1Readiness(item, db);
     const analysis = await runAnalysis(db, item);
     const idempotencyKey = text(body.idempotencyKey) || null;
     // The deterministic analysis ID includes the complete report state
@@ -426,6 +459,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     item.requestedConfig = normalizeConfig(extracted.config, item.requestedConfig);
     if (extracted.withholdDelivery) item.commitment = '暂不承诺具体交期';
     item.channel = channel;
+    refreshWorkflow1Readiness(item, db);
     item.round += 1;
     appendMessage(item, 'user', message);
     item.analysis = await runAnalysis(db, item);
@@ -699,7 +733,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     const item = ensureCase(db, routeParam(req.params.id));
     const filename = `${item.id}.md`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.type('text/markdown').send(exportMarkdown(item, db.listReports()));
+    res.type('text/markdown').send(exportMarkdown(item, db.listReports(), db.listAudit(item.id)));
   });
 
   app.get('/api/model/status', (_req, res) => res.json(getModelStatus()));

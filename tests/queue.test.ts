@@ -31,6 +31,17 @@ function analysis(patch: Partial<AnalysisResult> = {}): AnalysisResult {
 }
 
 describe('case queue derivation', () => {
+  it('counts workflow-one reply drafts in the replied queue without a legacy Node quote', () => {
+    const record = { ...makeCase(), workflow1Result: { replies: { en: { body: 'Please confirm the IP requirement.' } } } };
+    expect(getQueueStatus(record).hasReply).toBe(true);
+    expect(filterCases([record], '', ['replied'])).toHaveLength(1);
+  });
+
+  it('shows a pending workflow-one synchronization as review even when quality totals are known', () => {
+    const record = { ...makeCase({ analysis: analysis() }), workflow1QuoteReady: false, workflow1Result: { mode: 'pending_check' } };
+    expect(getQueueStatus(record).hasReview).toBe(true);
+    expect(getQueueCommercial(record).isUnknown).toBe(true);
+  });
   it('derives pending state from missing analysis without claiming a completed analysis', () => {
     const status = getQueueStatus(makeCase());
     expect(status.key).toBe('unanalysed');

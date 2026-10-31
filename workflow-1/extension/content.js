@@ -98,10 +98,15 @@
     return el.isContentEditable ? el.innerText : el.value;
   }
 
-  function insert(text) {
+  function insert(text, expectedConversationKey) {
+    if (typeof expectedConversationKey !== "string" || !expectedConversationKey
+      || conversationKey() !== expectedConversationKey) return { ok: false, error: "买家身份未确认或已变化，请手动核对后粘贴" };
     const el = replyTarget();
     if (!el) return { ok: false, error: "无法确认安全的聊天回复框，请复制后手动粘贴" };
     el.focus();
+    // focus may trigger site handlers; recheck synchronously at the write boundary.
+    if (conversationKey() !== expectedConversationKey || trustedComposer(el) !== el)
+      return { ok: false, error: "买家或回复框已变化，请手动核对后粘贴" };
     if (el.isContentEditable) {
       el.innerText = text;
     } else {
@@ -120,6 +125,6 @@
       sendResponse({ selection, recent, source: selection ? "selection" : recent ? "recent" : "none", conversationKey: conversationKey(), url: location.href });
     }
     else if (msg?.type === "tt-read-draft") sendResponse({ text: readDraft() });
-    else if (msg?.type === "tt-insert") sendResponse(insert(String(msg.text || "")));
+    else if (msg?.type === "tt-insert") sendResponse(insert(String(msg.text || ""), msg.expectedConversationKey));
   });
 })();

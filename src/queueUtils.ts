@@ -90,7 +90,8 @@ export function summarizeConfigChanges(caseRecord: CaseRecord): string[] {
 
 export function getQueueStatus(caseRecord: CaseRecord): QueueCaseStatus {
   const analysis = caseRecord.analysis;
-  const hasReply = Boolean(caseRecord.quote);
+  const replies = caseRecord.workflow1Result?.replies;
+  const hasReply = Boolean(caseRecord.quote) || Boolean(replies && typeof replies === 'object' && Object.values(replies).some((reply) => reply && typeof reply === 'object' && typeof (reply as Record<string, unknown>).body === 'string' && String((reply as Record<string, unknown>).body).trim()));
   if (!analysis) {
     return {
       key: 'unanalysed',
@@ -106,7 +107,7 @@ export function getQueueStatus(caseRecord: CaseRecord): QueueCaseStatus {
   }
 
   const reviewCount = analysis.findings.filter((finding) => finding.status === 'review' || finding.status === 'warning').length;
-  const hasReview = analysis.reviewCount > 0 || reviewCount > 0;
+  const hasReview = analysis.reviewCount > 0 || reviewCount > 0 || caseRecord.workflow1QuoteReady === false;
   const retestCount = analysis.findings.filter((finding) => finding.status === 'retest').length;
   const hasRetest = retestCount > 0 || analysis.requiredTests.length > 0;
   if (hasReview) {
@@ -123,6 +124,7 @@ function hasUnknownFeeCondition(caseRecord: CaseRecord): boolean {
   const analysis = caseRecord.analysis;
   if (!analysis) return true;
   return analysis.reviewCount > 0
+    || caseRecord.workflow1QuoteReady === false
     || analysis.findings.some((finding) => finding.status === 'review' || finding.status === 'warning')
     || analysis.leadTimeDays === null
     || !analysis.canQuote

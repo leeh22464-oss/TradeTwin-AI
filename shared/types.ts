@@ -47,6 +47,11 @@ export interface CaseRecord {
   baseConfig: ProductConfig; requestedConfig: ProductConfig; quantity: number; unitPriceEur: number;
   channel: Channel; inquiry: string; commitment: string;
   analysis: AnalysisResult | null; quote: QuoteResult | null; messages: ChatMessage[];
+  workflow1LastRunId?: string;
+  workflow1QuoteReady?: boolean;
+  workflow1PendingReason?: string;
+  workflow1EvidenceVersion?: string;
+  workflow1Result?: Record<string, unknown>;
 }
 export interface KnowledgeEntry {
   id: string; title: string; content: string; tags: string[]; source: string; updatedAt: string;

@@ -6,7 +6,17 @@ AMOUNT = r"\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?"
 MONEY_RE = re.compile(rf"(?:EUR|€)\s?({AMOUNT})|({AMOUNT})\s?(?:EUR|€|欧元)", re.I)
 DAYS_RE = re.compile(r"(\d{1,3})\s*(?:working days|business days|days|Arbeitstagen?|Werktagen?|Tagen?|个工作日|工作日|天)", re.I)
 WATT_RE = re.compile(r"(\d{1,3})\s*-?\s*(?:watts?\b|w(?![a-zäöüß]))", re.I)
-DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b(?:KW|CW)\s?\d{1,2}\b", re.I)
+NUMBER_WORD = r"(?:\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|ein(?:e[nmr]?)?|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|[一二两三四五六七八九十百]+)"
+LONG_DURATION_RE = re.compile(
+    rf"{NUMBER_WORD}\s*(?:weeks?\b|months?\b|Wochen?\b|Monaten?\b|Monate?\b|个?星期|个?周|个?月)", re.I)
+MONTH_NAME = (r"(?:Jan(?:uary|uar)?|Feb(?:ruary|ruar)?|Mar(?:ch)?|März|Apr(?:il)?|May|Mai|Jun(?:e|i)?|"
+              r"Jul(?:y|i)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Okt(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|Dez(?:ember)?)")
+DATE_RE = re.compile(
+    rf"\b\d{{4}}[-/]\d{{1,2}}[-/]\d{{1,2}}\b|\b\d{{1,2}}[./]\d{{1,2}}[./]\d{{4}}\b|"
+    rf"(?:\d{{4}}年\s*)?\d{{1,2}}月\s*\d{{1,2}}[日号]|"
+    rf"\b{MONTH_NAME}\.?\s+\d{{1,2}}(?:st|nd|rd|th)?(?:[,]?\s+\d{{4}})?\b|"
+    rf"\b\d{{1,2}}\.?\s+{MONTH_NAME}(?:\.?[,]?\s+\d{{4}})?\b|"
+    r"\b(?:KW|CW|week|Woche)\s?\d{1,2}\b|第\s*\d{1,2}\s*周", re.I)
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 URL_RE = re.compile(r"https?://\S+|www\.\S+", re.I)
 PHONE_RE = re.compile(r"\+?\d[\d\s()-]{7,}\d")
@@ -62,6 +72,7 @@ def check(text: str, facts: dict | None = None, channel: str = "email", constrai
     money_allowed = {round(v, 2) for v in facts.get("money", [])}
     days_allowed = set(facts.get("days", []))
     watts_allowed = set(facts.get("watts", []))
+    no_delivery = facts.get("delivery_approved") is False or ("days" in facts and not days_allowed)
     has_numbers = False
 
     for m in MONEY_RE.finditer(text):
@@ -86,10 +97,12 @@ def check(text: str, facts: dict | None = None, channel: str = "email", constrai
             notes.append(_ann("NUMBER_MISMATCH", "high", m,
                               f"功率 {m.group(1)}W 不属于当前任何方案或报告覆盖范围。", "变更单 / RULE-RATED-POWER-001"))
 
-    if constraints.get("hide_delivery_date"):
-        for m in DATE_RE.finditer(text):
-            notes.append(_ann("CONSTRAINT_VIOLATION", "high", m,
-                              "已要求暂不承诺交期，回复中不应出现具体日期或周次。", "业务员指令"))
+    if constraints.get("hide_delivery_date") or no_delivery:
+        for regex in (LONG_DURATION_RE, DATE_RE):
+            for m in regex.finditer(text):
+                notes.append(_ann("CONSTRAINT_VIOLATION" if constraints.get("hide_delivery_date") else "NUMBER_MISMATCH",
+                                  "high", m, "当前没有获准交期，回复中不应出现交期时长、具体日期或周次。",
+                                  "业务员指令" if constraints.get("hide_delivery_date") else "证据待核验 / RULE-QUOTE-ASSUMPTION-001"))
 
     for pattern, severity, message, basis in CLAIMS:
         for m in pattern.finditer(text):

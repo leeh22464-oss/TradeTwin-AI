@@ -256,7 +256,5 @@ def mail_simulate(body: ThreadIn):
 def mail_reset():
     if mailbox.mode() != "offline":
         raise HTTPException(400, "只有离线演示模式可以重置")
-    for t in mailbox.summaries():
-        store.delete(t["thread_id"])
     _mail_call(mailbox.reset_offline)
     return {"ok": True, "threads": mailbox.summaries()}

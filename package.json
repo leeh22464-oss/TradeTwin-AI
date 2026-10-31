@@ -7,13 +7,16 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "concurrently -k -n api,web \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
+    "dev": "node scripts/workflows.mjs dev",
+    "dev:node": "concurrently -k -n api,web \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
     "build": "tsc --noEmit && vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/index.js",
-    "start": "node dist-server/index.js",
+    "start": "node scripts/workflows.mjs start",
+    "start:node": "node dist-server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "test:smoke": "node scripts/smoke.mjs",
+    "test:workflows": "node scripts/smoke-workflows.mjs",
     "config:export": "tsx scripts/export-config.ts"
   },
   "dependencies": {

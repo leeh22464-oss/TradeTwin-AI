@@ -8,6 +8,17 @@ data/
 uploads/
 coverage/
 test-results/
+.python-deps/
+.venv/
+.uv-python/
+.uv-cache/
+__pycache__/
+.pytest_cache/
+.pytest-tmp*/
+.tmp/
+workflow-1/app/runtime/
+!workflow-1/app/tradetwin/data/
+!workflow-1/app/tradetwin/data/commercial.json
 .DS_Store
 **/.impeccable/*.png
 **/.impeccable/review/

@@ -9,6 +9,7 @@ import json
 import re
 import threading
 import time
+from uuid import uuid4
 from datetime import datetime, timezone
 from email import policy
 from email.message import EmailMessage
@@ -233,6 +234,11 @@ def _released() -> list[str]:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
 
 
+def _offline_generation() -> str:
+    path = RUNTIME_DIR / "offline-generation.txt"
+    return path.read_text(encoding="utf-8").strip() if path.exists() else "initial"
+
+
 def _fetch_offline() -> list[dict]:
     mails = [parse_message(p.read_bytes()) for p in sorted((SAMPLES_DIR / "inbox").glob("*.eml"))]
     released = set(_released())
@@ -252,7 +258,7 @@ def sync() -> list[dict]:
                 threads = group_threads(mails, own_address(), identity, namespace=path.stem)
                 _save_identity(path, identity)
             else:
-                threads = group_threads(mails, own_address())
+                threads = group_threads(mails, own_address(), namespace="offline:" + _offline_generation())
             _state["error"] = None
         except (OSError, imaplib.IMAP4.error, MailboxError) as exc:
             _state["error"] = f"邮箱同步失败：{exc}"
@@ -423,7 +429,13 @@ def simulate_followup(thread_id: str) -> dict:
 
 
 def reset_offline() -> None:
-    path = _offline_state_path()
-    if path.exists():
-        path.unlink()
-    sync()
+    if mode() != "offline":
+        raise MailboxError("只有离线演示模式可以重置")
+    with _lock:
+        path = _offline_state_path()
+        if path.exists():
+            path.unlink()
+        # A new demo starts at round one under a fresh case/session identity.
+        # Persist this namespace across restarts; previous sessions remain auditable.
+        (RUNTIME_DIR / "offline-generation.txt").write_text(uuid4().hex, encoding="utf-8")
+        sync()

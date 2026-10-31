@@ -64,8 +64,9 @@ async function currentPage() {
 
 async function verifyReplyPage() {
   const { tab, page } = await currentPage();
-  if (state.result && (state.tabId !== tab.id || !state.identity || page?.conversationKey !== state.identity
-    || state.resultPageKey !== state.pageKey)) throw new Error("买家身份未确认或已变化，请复制草稿并手动核对后粘贴");
+  if (!state.identity || state.tabId !== tab.id || page?.conversationKey !== state.identity
+    || (state.result && state.resultPageKey !== state.pageKey)) throw new Error("买家身份未确认或已变化，请复制草稿并手动核对后粘贴");
+  return { tab, conversationKey: page.conversationKey };
 }
 
 async function saveSessions() {
@@ -199,7 +200,8 @@ $("#lang-tabs").addEventListener("click", (e) => {
 
 $("#btn-insert").addEventListener("click", (e) => busy(e.target, async () => {
   const text = $("#reply-body").value;
-  const r = await verifyReplyPage().then(() => sendToPage({ type: "tt-insert", text })).catch(() => null);
+  const r = await verifyReplyPage().then(({ tab, conversationKey }) =>
+    sendToPage({ type: "tt-insert", text, expectedConversationKey: conversationKey }, tab)).catch(() => null);
   if (r?.ok) return toast("已填入回复框，请检查后自己点击发送");
   await navigator.clipboard.writeText(text);
   toast("无法确认当前买家或聊天回复框，已复制到剪贴板，请核对后手动粘贴");
