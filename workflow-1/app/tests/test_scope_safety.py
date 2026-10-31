@@ -109,13 +109,27 @@ def test_explicit_baseline_scope_is_supported_and_can_resolve_only_its_field(ver
     sid = "scope-explicit-baseline"
     supported = pipeline.analyze_message(DE_RFQ + " same original material / Germany", session_id=sid)
     assert supported["quote_options"] and supported["mode"] == "options"
+    assert supported["scope"]["requested_material"] == "original-material"
     changed = pipeline.apply_instruction(sid, "replace the original material with PVC for the United States market")
     assert_scope_pending(changed, "material", "PVC", "replace the original material with PVC for the United States market")
     one_resolved = pipeline.apply_instruction(sid, "Use the original material again.")
     assert_scope_pending(one_resolved, "market", "US", "replace the original material with PVC for the United States market")
-    assert next(row for row in one_resolved["change_order"] if row["field"] == "material")["to"] == "original"
+    material = next(row for row in one_resolved["change_order"] if row["field"] == "material")
+    assert material["to"] == "original-material"
+    assert material["source_quote"] == "original material"
     resolved = pipeline.apply_instruction(sid, "Return to the Germany market only.")
     assert resolved["quote_options"] and resolved["mode"] == "options"
+    assert resolved["scope"]["requested_material"] == "original-material"
+    assert resolved["scope"]["requested_market"] == "DE"
+
+
+@pytest.mark.parametrize("phrase", [
+    "original-material", "same original material", "baseline material",
+    "ursprüngliches Material", "原材料",
+])
+def test_explicit_original_material_has_shared_canonical_value_and_exact_quote(phrase):
+    field = extract.scope_fields(phrase)["material"]
+    assert field == {"value": "original-material", "status": "unchanged", "source_quote": phrase}
 
 
 def test_same_material_does_not_clear_previous_pvc(verified_workflow2):

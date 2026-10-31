@@ -61,7 +61,7 @@ def scope_fields(text: str) -> dict:
             value = token.group(0).upper() if token.group(0).upper() in ("PVC", "ABS") else token.group(0)
             result["material"] = {"value": value, "status": "changed", "source_quote": token.group(0)}
         elif original and not negated:
-            value = "original-material" if original.group(0).lower() == "original-material" else "original"
+            value = "original-material"
             result["material"] = {"value": value, "status": "unchanged", "source_quote": original.group(0)}
         elif word and not (SAME_MATERIAL_RE.search(clause) and not negated):
             result["material"] = {"value": clause.strip(), "status": "changed", "source_quote": clause.strip()}
