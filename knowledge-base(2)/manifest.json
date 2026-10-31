@@ -1,0 +1,42 @@
+{
+  "package_name": "TradeTwin AI Knowledge Base",
+  "package_version": "0.2.0",
+  "data_status": "synthetic_demo",
+  "language": ["zh-CN", "en", "de"],
+  "scope": {
+    "market": "EU",
+    "product_scope": "indoor_fixed_led_luminaire",
+    "excluded_configurations": ["wireless", "emergency", "explosive_atmosphere", "battery"]
+  },
+  "rule_verification_date": "2026-10-31",
+  "synthetic_data_notice": "所有业务资料均为合成演示数据，不代表真实企业、客户、实验室或证书。",
+  "severity_values": [
+    "HARD_ISSUE_CANDIDATE",
+    "RECOMMENDATION",
+    "MANUAL_REVIEW",
+    "NO_ISSUE_FOUND_IN_SCOPE"
+  ],
+  "coverage_status_values": [
+    "COVERED",
+    "NEEDS_RETEST",
+    "DOCUMENT_UPDATE",
+    "MANUAL_REVIEW",
+    "NOT_ENOUGH_EVIDENCE"
+  ],
+  "workflow": "parameter_change_to_evidence_coverage_to_minimum_retest_to_compliance_cost_to_quote_options",
+  "quote_boundary": "费用、周期和参数映射均为合成演示数据，必须带 synthetic=true、假设版本和人工确认状态。",
+  "files": {
+    "public_rules": "public-rules/",
+    "synthetic_data": "synthetic-data/",
+    "collaboration": "collaboration/",
+    "glossary": "glossary/zh-en-de-terms.json",
+    "test_cases": "test-cases/",
+    "handoff": "handoff/"
+  },
+  "limitations": [
+    "不提供正式法律意见、认证判断或清关保证。",
+    "不复制付费或受版权保护的协调标准正文。",
+    "合成测试结果不得解释为生产环境召回率。",
+    "系统不替代实验室报价、认证判断、清关判断或企业合规负责人的最终决定。"
+  ]
+}

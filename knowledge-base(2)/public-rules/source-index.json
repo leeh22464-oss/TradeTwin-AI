@@ -1,0 +1,83 @@
+{
+  "index_version": "0.1.0",
+  "retrieved_on": "2026-10-31",
+  "scope": {
+    "market": "EU",
+    "product_scope": "indoor_fixed_led_luminaire",
+    "note": "来源入口用于建立检查范围，不自动决定具体产品适用性。"
+  },
+  "sources": [
+    {
+      "source_id": "SRC-CE-MARKING",
+      "title": "CE marking",
+      "url": "https://single-market-economy.ec.europa.eu/single-market/ce-marking_en",
+      "identifier": "European Commission CE marking overview",
+      "publisher": "European Commission",
+      "official_date_or_version": "Web page; verify current content before production",
+      "retrieved_on": "2026-10-31",
+      "topic": "CE marking process and manufacturer responsibilities",
+      "product_scope_note": "General entry point; product-specific legislation and applicability require review.",
+      "human_review_required": true
+    },
+    {
+      "source_id": "SRC-LVD-2014-35",
+      "title": "Directive 2014/35/EU relating to electrical equipment designed for use within certain voltage limits",
+      "url": "https://eur-lex.europa.eu/eli/dir/2014/35/oj",
+      "identifier": "2014/35/EU",
+      "publisher": "European Union",
+      "official_date_or_version": "OJ L 96, 29.3.2014; consolidated status must be checked",
+      "retrieved_on": "2026-10-31",
+      "topic": "Low-voltage electrical equipment scope and obligations",
+      "product_scope_note": "Check voltage range, product construction and exclusions for the actual luminaire.",
+      "human_review_required": true
+    },
+    {
+      "source_id": "SRC-EMC-2014-30",
+      "title": "Directive 2014/30/EU relating to electromagnetic compatibility",
+      "url": "https://eur-lex.europa.eu/eli/dir/2014/30/oj",
+      "identifier": "2014/30/EU",
+      "publisher": "European Union",
+      "official_date_or_version": "OJ L 96, 29.3.2014; consolidated status must be checked",
+      "retrieved_on": "2026-10-31",
+      "topic": "Electromagnetic compatibility scope and obligations",
+      "product_scope_note": "Check whether the equipment falls within scope and which evidence package is relevant.",
+      "human_review_required": true
+    },
+    {
+      "source_id": "SRC-ROHS-2011-65",
+      "title": "Directive 2011/65/EU on restriction of the use of certain hazardous substances",
+      "url": "https://eur-lex.europa.eu/eli/dir/2011/65/oj",
+      "identifier": "2011/65/EU",
+      "publisher": "European Union",
+      "official_date_or_version": "OJ L 174, 1.7.2011; amendments and exemptions must be checked",
+      "retrieved_on": "2026-10-31",
+      "topic": "Restricted substances and technical documentation evidence",
+      "product_scope_note": "The product category and applicable exemptions must be confirmed by the responsible role.",
+      "human_review_required": true
+    },
+    {
+      "source_id": "SRC-ECODESIGN-2019-2020",
+      "title": "Commission Regulation (EU) 2019/2020 laying down ecodesign requirements for light sources and separate control gears",
+      "url": "https://eur-lex.europa.eu/eli/reg/2019/2020/oj",
+      "identifier": "(EU) 2019/2020",
+      "publisher": "European Union",
+      "official_date_or_version": "OJ L 315, 5.12.2019; amendments and applicability must be checked",
+      "retrieved_on": "2026-10-31",
+      "topic": "Ecodesign requirements for covered light sources and separate control gears",
+      "product_scope_note": "Do not automatically apply light-source requirements to every complete luminaire; determine the covered object.",
+      "human_review_required": true
+    },
+    {
+      "source_id": "SRC-BLUE-GUIDE-2022",
+      "title": "The Blue Guide on the implementation of EU product rules 2022",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:52022XC0629(04)",
+      "identifier": "2022/C 247/01",
+      "publisher": "European Commission",
+      "official_date_or_version": "2022/C 247/01; confirm later guidance before production",
+      "retrieved_on": "2026-10-31",
+      "topic": "General implementation guidance, economic operators and product compliance",
+      "product_scope_note": "Guidance context only; product-specific obligations require the applicable legislation and professional review.",
+      "human_review_required": true
+    }
+  ]
+}

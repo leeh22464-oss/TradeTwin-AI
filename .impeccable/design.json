@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T16:23:23+08:00",
+  "title": "Design System: TradeTwin AI",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "neutral", "displayName": "Working Ink", "canonical": "#14211e", "tonalRamp": ["#14211e", "#21322e", "#304741", "#49645a", "#6d877b", "#9cb2a8", "#d1ded8", "#f5f7f4"] },
+      "ink-soft": { "role": "neutral", "displayName": "Soft Ink", "canonical": "#5b6965", "tonalRamp": ["#25302e", "#35413e", "#485652", "#5b6965", "#7e8d88", "#aab8b2", "#d4dfda", "#f5f7f4"] },
+      "ink-faint": { "role": "neutral", "displayName": "Faint Ink", "canonical": "#60706a", "tonalRamp": ["#3d4945", "#56635f", "#6e7c77", "#60706a", "#a4b0ab", "#c1cbc6", "#dfe6e2", "#f5f7f4"] },
+      "green-950": { "role": "primary", "displayName": "Deep Rail Green", "canonical": "#07372b", "tonalRamp": ["#07372b", "#0a4636", "#0b5943", "#176e54", "#3d8c6d", "#71b398", "#aed5c3", "#eff8f3"] },
+      "green-900": { "role": "primary", "displayName": "Deep Action Green", "canonical": "#0b4f3c", "tonalRamp": ["#0b4f3c", "#0d5d47", "#176d53", "#2b8063", "#4a997b", "#7bbba3", "#b6d9ca", "#eff8f3"] },
+      "green-800": { "role": "primary", "displayName": "Ledger Green", "canonical": "#0e6950", "tonalRamp": ["#0e6950", "#16765b", "#278467", "#3f9678", "#65ab8e", "#91c4ac", "#c0dfd0", "#eff8f3"] },
+      "green-100": { "role": "primary", "displayName": "Pale Green", "canonical": "#e1eee9", "tonalRamp": ["#185c48", "#357b63", "#5c9d82", "#83bba2", "#a7cebb", "#c5ded1", "#e1eee9", "#f7fcf9"] },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff", "tonalRamp": ["#17241f", "#30433c", "#52665e", "#789087", "#a6b9b1", "#cedbd6", "#e8efec", "#ffffff"] },
+      "paper-warm": { "role": "neutral", "displayName": "Warm Paper Ground", "canonical": "#f5f7f4", "tonalRamp": ["#19251f", "#35433c", "#53645b", "#77887f", "#a6b3ad", "#cbd4cf", "#e1e7e3", "#f5f7f4"] },
+      "line": { "role": "neutral", "displayName": "Ledger Line", "canonical": "#dce4df", "tonalRamp": ["#283630", "#4a5b53", "#718078", "#96a59e", "#b5c2bc", "#cbd6d1", "#dce4df", "#f8faf9"] },
+      "line-strong": { "role": "neutral", "displayName": "Strong Ledger Line", "canonical": "#cad6cf", "tonalRamp": ["#25332d", "#46574f", "#697a72", "#8b9b93", "#aab8b1", "#bccac3", "#cad6cf", "#f4f7f5"] },
+      "amber": { "role": "tertiary", "displayName": "Amber Review", "canonical": "#805415", "tonalRamp": ["#56370e", "#754a11", "#945f14", "#805415", "#ca963c", "#dfb974", "#f1dcb1", "#fff4dd"] },
+      "amber-bg": { "role": "tertiary", "displayName": "Amber Paper", "canonical": "#fff4dd", "tonalRamp": ["#56370e", "#754a11", "#945f14", "#805415", "#ca963c", "#dfb974", "#f1dcb1", "#fff4dd"] },
+      "red": { "role": "tertiary", "displayName": "Evidence Red", "canonical": "#b44c41", "tonalRamp": ["#54221d", "#722f28", "#923c34", "#b44c41", "#c96e65", "#dfa09a", "#f0cbc6", "#fff0ed"] },
+      "red-bg": { "role": "tertiary", "displayName": "Red Paper", "canonical": "#fff0ed", "tonalRamp": ["#54221d", "#722f28", "#923c34", "#b44c41", "#c96e65", "#dfa09a", "#f0cbc6", "#fff0ed"] },
+      "blue": { "role": "secondary", "displayName": "Review Blue", "canonical": "#2f6f98", "tonalRamp": ["#173d56", "#1e506f", "#266386", "#2f6f98", "#598eae", "#89b2c8", "#bdd9e5", "#e9f3fa"] },
+      "blue-bg": { "role": "secondary", "displayName": "Blue Paper", "canonical": "#e9f3fa", "tonalRamp": ["#173d56", "#1e506f", "#266386", "#2f6f98", "#598eae", "#89b2c8", "#bdd9e5", "#e9f3fa"] },
+      "status-retest": { "role": "tertiary", "displayName": "Retest Red", "canonical": "#a4503d", "tonalRamp": ["#4d2119", "#692b21", "#85362d", "#a4503d", "#be6b5b", "#d99c91", "#edc7c1", "#fff2ee"] },
+      "status-retest-bg": { "role": "tertiary", "displayName": "Retest Paper", "canonical": "#fff2ee", "tonalRamp": ["#4d2119", "#692b21", "#85362d", "#a4503d", "#be6b5b", "#d99c91", "#edc7c1", "#fff2ee"] },
+      "status-reuse": { "role": "primary", "displayName": "Reuse Green", "canonical": "#26734e", "tonalRamp": ["#113b27", "#185136", "#1e6342", "#26734e", "#4e956f", "#83b89b", "#b9d8c5", "#eff9f2"] },
+      "status-reuse-bg": { "role": "primary", "displayName": "Reuse Paper", "canonical": "#eff9f2", "tonalRamp": ["#113b27", "#185136", "#1e6342", "#26734e", "#4e956f", "#83b89b", "#b9d8c5", "#eff9f2"] },
+      "status-update": { "role": "tertiary", "displayName": "Update Gold", "canonical": "#8b691c", "tonalRamp": ["#3e2e0b", "#57450f", "#705514", "#8b691c", "#aa8a38", "#c9ae70", "#e4d5ad", "#fff8e8"] },
+      "status-update-bg": { "role": "tertiary", "displayName": "Update Paper", "canonical": "#fff8e8", "tonalRamp": ["#3e2e0b", "#57450f", "#705514", "#8b691c", "#aa8a38", "#c9ae70", "#e4d5ad", "#fff8e8"] },
+      "status-review": { "role": "tertiary", "displayName": "Review Amber", "canonical": "#a26616", "tonalRamp": ["#4a2d08", "#643d0d", "#825112", "#a26616", "#bd8840", "#d8ae70", "#ecd5aa", "#fff8e9"] },
+      "status-review-bg": { "role": "tertiary", "displayName": "Review Paper", "canonical": "#fff8e9", "tonalRamp": ["#4a2d08", "#643d0d", "#825112", "#a26616", "#bd8840", "#d8ae70", "#ecd5aa", "#fff8e9"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Case Heading", "purpose": "Case and secondary-page headings; tightened tracking keeps long inquiry names controlled." },
+      "headline": { "displayName": "Panel Heading", "purpose": "Bill, section, and major work-surface headings." },
+      "title": { "displayName": "Card Title", "purpose": "Configuration, conversation, quote, and card titles." },
+      "body": { "displayName": "Working Body", "purpose": "Inquiry context, explanations, and operational copy." },
+      "label": { "displayName": "Ledger Label", "purpose": "Status, metadata, field labels, overlines, and workflow annotations." }
+    },
+    "shadows": [
+      { "name": "ambient-notice", "value": "0 14px 34px rgba(20, 46, 37, .06)", "purpose": "Floating notices over the working sheet." },
+      { "name": "panel-lift", "value": "0 2px 10px rgba(19, 50, 40, .018)", "purpose": "Quiet separation for bill, quote, conversation, report, settings, and knowledge panels." },
+      { "name": "drawer-lift", "value": "-14px 0 35px rgba(3, 30, 22, .14)", "purpose": "Right-side evidence drawer elevation." },
+      { "name": "dialog-lift", "value": "0 20px 50px rgba(3, 30, 22, .23)", "purpose": "New-case dialog above the modal backdrop." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "150ms ease", "purpose": "Button, nav, field, and small state transitions." },
+      { "name": "overlay-enter", "value": "200ms ease", "purpose": "Notice, drawer, and dialog entrance animation." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce)", "purpose": "Collapses animation and transition duration to .01ms." }
+    ],
+    "breakpoints": [
+      { "name": "wide", "value": "1180px", "purpose": "Narrow rail, reduced page gutters, two-column knowledge grid, and single-column focused workspace." },
+      { "name": "snapshot-stack", "value": "1100px", "purpose": "Focused-case bill snapshot and bill summary become two columns; commercial strip title and total span the row." },
+      { "name": "queue-summary", "value": "1024px", "purpose": "Queue table and desktop column chooser become summary cards." },
+      { "name": "drawer", "value": "860px", "purpose": "Sidebar becomes a fixed slide-in drawer with its own scroll; workspace aside remains two columns." },
+      { "name": "compact", "value": "630px", "purpose": "Mobile topbar, visible three-step workflow grid, one-column workspace aside, stacked task order, evidence, and settings." }
+    ],
+    "focus": {
+      "outline": "3px solid rgba(42, 126, 96, .3)",
+      "outlineOffset": "2px",
+      "fieldBorder": "#8dbba7",
+      "fieldHalo": "0 0 0 3px rgba(45, 131, 96, .09)"
+    },
+    "actualSourceTokens": {
+      "page-ground": { "role": "surface", "canonical": "#f3f5f2", "source": "body background" },
+      "field-surface": { "role": "surface", "canonical": "#fbfcfb", "source": "field, select, and report controls" },
+      "context-surface": { "role": "surface", "canonical": "#f1f7f4", "source": "conversation context and vault note" },
+      "active-nav": { "role": "navigation", "canonical": "#135e49", "source": "active navigation item" },
+      "ink-placeholder": { "role": "text", "canonical": "#66756e", "source": "field and composer placeholders" },
+      "sidebar-muted": { "role": "text", "canonical": "#8aa99b", "source": "rail labels and quiet case metadata" },
+      "amber-ink": { "role": "semantic", "canonical": "#805415", "source": "warning, review, and delivery caveat copy" }
+    },
+    "machine": {
+      "source": ["src/styles.css", "src/App.tsx", "src/components/CaseQueue.tsx", "src/components/KnowledgeWorkspace.tsx", "src/queueUtils.ts"],
+      "detector": {
+        "report": "/tmp/tradetwin-knowledge-design-findings.json",
+        "interWarnings": 1,
+        "designTokenAdvisories": 188,
+        "summary": "1 Inter warning + 188 design-token advisories",
+        "advisoryBreakdown": { "color": 62, "size": 105, "radius": 21 }
+      },
+      "observedFontSizes": ["8px", "9px", "10px", "11px", "12px", "13px", "14px", "16px", "17px", "18px", "20px", "21px", "24px", "27px", "30px", "clamp(25px, 2.4vw, 35px)"],
+      "observedRadii": ["3px", "4px", "5px", "6px", "7px", "8px", "9px", "10px", "50%"]
+    },
+    "interaction": {
+      "dialogs": {
+        "portal": "#dialog-root",
+        "semantics": "role=dialog, aria-modal=true, aria-labelledby",
+        "keyboard": "Escape closes; Tab and Shift+Tab wrap within the active overlay",
+        "focus": "Initial focus is explicit; body scroll and prior focus are restored on cleanup",
+        "background": "Other body-level siblings are marked inert while the overlay is open"
+      },
+      "audit": {
+        "summary": "Event types are mapped to compact Chinese labels and summaries; raw JSON and fingerprints remain expandable",
+        "mobileColumns": "61px timestamp rail plus event marker and summary"
+      },
+      "copy": {
+        "headings": "Primary page names are real DOM headings and labels in src/App.tsx; CSS hides only duplicate legacy English metadata",
+        "generatedText": "No pseudo-element or CSS-generated copy substitutes for accessible text"
+      },
+      "mobile": {
+        "compactBreakpoint": "630px",
+        "workflow": "Visible three-step grid; connector lines and helper copy are hidden"
+      },
+      "queue": {
+        "defaultView": "案件队列",
+        "search": "Whitespace-tokenized AND search across customer, case, model, and inquiry text",
+        "filters": ["未推演", "含人工核验", "含补测", "已有回复"],
+        "sorting": "更新 newest/oldest, 客户 A–Z, and 费用 ascending/descending; unknown fees remain last",
+        "pagination": "10 or 20 per page; case and entry columns remain visible",
+        "responsive": "Table is hidden at <=1024px and replaced by summary cards; column chooser is desktop-only"
+      },
+      "unsaved": {
+        "portal": "#dialog-root",
+        "dirtySources": "Requested configuration, order quantity, and unit price",
+        "navigation": "Return and case switching use a custom discard-confirmation dialog; refresh and new-case actions show a save-first notice",
+        "guardedActions": "Chat, option choice, and quote generation auto-save first",
+        "saveFailure": "Keep draft input, show error, and stop the downstream action"
+      },
+      "knowledge": {
+        "entryPoint": "Research panel follows the index summary; package counts and boundary note appear before the query control",
+        "sources": "Six public source rows are inside a native details disclosure with canonical source ID, scope, index date, and safe HTTPS link",
+        "entries": "Search and kind filters precede native details rows; expanded rows show full text, package provenance, human-review and synthetic flags",
+        "researchModes": "local=仅本地索引·未联网; live=已联网核查 with inline citations; fallback separates 搜索未采用 from 本次未联网",
+        "provenance": "asOf and checkedAt are separate; canonical source IDs and same-domain supplemental URLs are labelled independently",
+        "busy": "Query, source selection, sync, and related edits are disabled while research is in flight"
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main workflow action, such as re-running the deterministic analysis.",
+      "html": "<button class=\"ds-button-primary\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 11a8 8 0 1 1-2.34-5.66M20 4v7h-7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>重新推演</span></button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 14px;border:1px solid transparent;border-radius:7px;background:#0e6950;color:#fff;font:650 12px/1 Inter,ui-sans-serif,sans-serif;transition:transform .15s ease,background .15s ease,border .15s ease}.ds-button-primary svg{width:15px;height:15px}.ds-button-primary:hover{background:#0b4f3c;transform:translateY(-1px)}.ds-button-primary:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}.ds-button-primary:active{transform:none}.ds-button-primary:disabled{cursor:not-allowed;opacity:.58}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet save, export, cancel, or supporting action beside a primary action.",
+      "html": "<button class=\"ds-button-secondary\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3v12m0 0 4-4m-4 4-4-4M5 21h14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>导出报告</span></button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 14px;border:1px solid #cad6cf;border-radius:7px;background:#fff;color:#14211e;font:650 12px/1 Inter,ui-sans-serif,sans-serif;transition:transform .15s ease,background .15s ease,border .15s ease}.ds-button-secondary svg{width:15px;height:15px;color:#0e6950}.ds-button-secondary:hover{background:#fafcfb;border-color:#aabdb3;transform:translateY(-1px)}.ds-button-secondary:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}.ds-button-secondary:active{transform:none}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Labeled compact field for configuration, search, or evidence confirmation.",
+      "html": "<label class=\"ds-field\"><span>目标市场</span><input value=\"DE\" placeholder=\"例如 DE\" /></label>",
+      "css": ".ds-field{display:grid;gap:6px;min-width:0}.ds-field>span{color:#60706a;font:400 10px/1.2 Inter,ui-sans-serif,sans-serif}.ds-field input{width:100%;min-height:34px;padding:8px 9px;border:1px solid #dce4df;border-radius:5px;background:#fbfcfb;color:#14211e;font:400 12px/1.4 Inter,ui-sans-serif,sans-serif;outline:0;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease}.ds-field input::placeholder{color:#66756e}.ds-field input:focus{border-color:#8dbba7;background:#fff;box-shadow:0 0 0 3px rgba(45,131,96,.09)}.ds-field input:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}"
+    },
+    {
+      "name": "Active Navigation Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Current workspace selection in the dark green rail.",
+      "html": "<button class=\"ds-nav-item ds-nav-item-active\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 13h6V4H4zm10 7h6v-9h-6zM4 20h6v-3H4zm10-12h6V4h-6z\" fill=\"currentColor\"/></svg><span>变更工作台</span><em>3</em></button>",
+      "css": ".ds-nav-item{width:100%;display:flex;align-items:center;gap:11px;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:#a8c2b7;text-align:left;font:400 13px/1.3 Inter,ui-sans-serif,sans-serif;transition:background .15s ease,color .15s ease}.ds-nav-item svg{width:17px;height:17px;flex:0 0 17px}.ds-nav-item em{margin-left:auto;padding:2px 6px;border-radius:10px;background:rgba(255,255,255,.1);font:400 10px/1 Inter,ui-sans-serif,sans-serif}.ds-nav-item:hover{background:rgba(255,255,255,.08);color:#fff}.ds-nav-item-active{background:#135e49;color:#fff;box-shadow:inset 3px 0 #81d0ad}.ds-nav-item:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "refersTo": "status-pill",
+      "description": "Compact semantic state marker for findings and reports.",
+      "html": "<span class=\"ds-status-pill ds-status-retest\"><i></i><span>需补测</span></span>",
+      "css": ".ds-status-pill{display:inline-flex;align-items:center;gap:5px;width:max-content;padding:5px 6px;border:1px solid #d9e2dd;border-radius:4px;background:#f7faf8;color:#5b6965;font:650 10px/1.2 Inter,ui-sans-serif,sans-serif;white-space:nowrap}.ds-status-pill i{width:5px;height:5px;border-radius:50%;background:currentColor}.ds-status-retest{border-color:#e9cbc4;background:#fff2ee;color:#a4503d}.ds-status-reuse{border-color:#c6e3d3;background:#eff9f2;color:#26734e}.ds-status-review{border-color:#ecd6aa;background:#fff8e9;color:#a26616}.ds-status-pill:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}"
+    },
+    {
+      "name": "Evidence Card",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Report list item that exposes source, page count, and test tags.",
+      "html": "<article class=\"ds-report-card\"><div class=\"ds-report-icon\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><div><strong>TR-001</strong><h3>安规与环境测试报告</h3><small>3 页 · 温升 / 防护</small></div><span>›</span></article>",
+      "css": ".ds-report-card{width:100%;display:grid;grid-template-columns:33px minmax(0,1fr) 18px;align-items:center;gap:10px;padding:13px 14px;border:1px solid #dce4df;border-radius:8px;background:#fff;color:#14211e;text-align:left}.ds-report-card:hover{border-color:#9fcbb6;box-shadow:0 2px 10px rgba(20,80,55,.055)}.ds-report-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:5px;background:#eff7f2;color:#0e6950}.ds-report-icon svg{width:18px;height:18px}.ds-report-card strong{font:650 11px/1.2 Inter,ui-sans-serif,sans-serif}.ds-report-card h3{margin:4px 0 3px;font:700 13px/1.2 Inter,ui-sans-serif,sans-serif}.ds-report-card small{color:#60706a;font:400 10px/1.3 Inter,ui-sans-serif,sans-serif}.ds-report-card>span{color:#60706a;font-size:17px}.ds-report-card:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}"
+    },
+    {
+      "name": "Conversation Composer",
+      "kind": "custom",
+      "refersTo": "field",
+      "description": "Compact second-round message composer paired with channel selection and send action.",
+      "html": "<div class=\"ds-composer\"><textarea placeholder=\"输入客户变更…\"></textarea><div><label>商务邮件⌄</label><button aria-label=\"发送\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m4 4 16 8-16 8 3-8zM7 12h13\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div></div>",
+      "css": ".ds-composer{margin:0 13px 13px;overflow:hidden;border:1px solid #cad6cf;border-radius:7px;background:#fbfdfb}.ds-composer textarea{display:block;width:100%;min-height:68px;padding:9px;border:0;resize:vertical;background:transparent;color:#14211e;font:400 11px/1.5 Inter,ui-sans-serif,sans-serif;outline:0}.ds-composer textarea::placeholder{color:#66756e}.ds-composer textarea:focus{box-shadow:inset 0 0 0 3px rgba(45,131,96,.09)}.ds-composer>div{display:flex;align-items:center;justify-content:space-between;padding:5px 6px 5px 9px;border-top:1px solid #dce4df}.ds-composer label{color:#5b6965;font:400 10px/1.2 Inter,ui-sans-serif,sans-serif}.ds-composer button{width:28px;height:28px;display:grid;place-items:center;border:0;border-radius:5px;background:#0e6950;color:#fff}.ds-composer button:hover{background:#0b4f3c}.ds-composer button:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}.ds-composer svg{width:14px;height:14px}"
+    },
+    {
+      "name": "Evidence Drawer",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "Traceability overlay for rule, status, page quote, source link, and manual override.",
+      "html": "<aside class=\"ds-drawer\"><div><small>证据链 · R-IP-001</small><button aria-label=\"关闭\">×</button></div><h2>防尘防水测试</h2><p>报告 TR-001 · 第 3 页</p><blockquote>防护等级：IP20。</blockquote></aside>",
+      "css": ".ds-drawer{width:min(450px,100vw);min-height:260px;padding:22px;background:#fff;box-shadow:-14px 0 35px rgba(3,30,22,.14);color:#14211e}.ds-drawer>div{display:flex;justify-content:space-between;align-items:flex-start}.ds-drawer small{color:#0e6950;font:750 10px/1.2 Inter,ui-sans-serif,sans-serif;letter-spacing:.11em;text-transform:uppercase}.ds-drawer button{border:0;background:transparent;color:#0e6950;font-size:24px;line-height:1}.ds-drawer button:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}.ds-drawer h2{margin:7px 0 18px;font:700 20px/1.2 Inter,ui-sans-serif,sans-serif;letter-spacing:-.03em}.ds-drawer p{margin:0;color:#5b6965;font:400 11px/1.5 Inter,ui-sans-serif,sans-serif}.ds-drawer blockquote{margin:18px 0 0;padding:10px;border:1px solid #dce4df;border-radius:6px;background:#fbfdfc;color:#5b6965;font:400 10px/1.6 Inter,ui-sans-serif,sans-serif}"
+    },
+    {
+      "name": "Case Queue Toolbar",
+      "kind": "custom",
+      "refersTo": "field",
+      "description": "Queue search, sorting, page size, and composable status filters.",
+      "html": "<div class=\"ds-queue-toolbar\"><label class=\"ds-queue-search\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"m16 16 5 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg><input placeholder=\"搜索客户、案件、型号或买家原话\" /></label><button class=\"ds-queue-filter\">含人工核验</button><button class=\"ds-queue-filter ds-queue-filter-active\">含补测</button></div>",
+      "css": ".ds-queue-toolbar{display:flex;align-items:center;gap:8px;padding:12px 14px;border:1px solid #dce4df;border-radius:9px 9px 0 0;background:#fff}.ds-queue-search{min-width:0;flex:1;display:flex;align-items:center;gap:8px;height:38px;padding:0 11px;border:1px solid #dce4df;border-radius:6px;background:#fbfcfb;color:#60706a}.ds-queue-search:focus-within{border-color:#8dbba7;background:#fff;box-shadow:0 0 0 3px rgba(45,131,96,.09)}.ds-queue-search svg{width:17px;height:17px;flex:0 0 17px}.ds-queue-search input{min-width:0;width:100%;height:100%;border:0;outline:0;background:transparent;color:#14211e;font:400 14px/1.4 Inter,ui-sans-serif,sans-serif}.ds-queue-search input::placeholder{color:#66756e}.ds-queue-filter{min-height:30px;padding:0 9px;border:1px solid #dce4df;border-radius:5px;background:#fff;color:#5b6965;font:400 12px/1 Inter,ui-sans-serif,sans-serif}.ds-queue-filter:hover,.ds-queue-filter-active{border-color:#9fcbb6;background:#eef8f2;color:#0b4f3c}.ds-queue-filter:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}"
+    },
+    {
+      "name": "Queue Summary Item",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Responsive case card used when the comparison table is too narrow.",
+      "html": "<article class=\"ds-queue-item\"><div class=\"ds-queue-item-head\"><div><strong>NL-L 德国变更</strong><span>Nordlicht GmbH · NL-L</span></div><b>待核验</b></div><div class=\"ds-queue-change\">功率 24W → 36W · 防护 IP20 → IP44</div><div class=\"ds-queue-meta\"><span>待核验 · 交期待核验</span><span>10/31</span></div><button>进入案件 →</button></article>",
+      "css": ".ds-queue-item{display:grid;gap:10px;padding:14px;border:1px solid #dce4df;border-radius:8px;background:#fff;box-shadow:0 2px 10px rgba(19,50,40,.018);color:#14211e}.ds-queue-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.ds-queue-item-head strong,.ds-queue-item-head span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-queue-item-head strong{font:700 14px/1.3 Inter,ui-sans-serif,sans-serif}.ds-queue-item-head span{margin-top:3px;color:#5b6965;font:400 12px/1.3 Inter,ui-sans-serif,sans-serif}.ds-queue-item-head b{padding:4px 6px;border:1px solid #ecd6aa;border-radius:4px;background:#fff8e9;color:#805415;font:650 12px/1 Inter,ui-sans-serif,sans-serif;white-space:nowrap}.ds-queue-change{padding:5px 6px;border:1px solid #d7e6df;border-radius:4px;background:#f1f8f4;color:#0b4f3c;font:400 12px/1.35 Inter,ui-sans-serif,sans-serif;overflow-wrap:anywhere}.ds-queue-meta{display:flex;flex-wrap:wrap;gap:8px;color:#5b6965;font:400 12px/1.3 Inter,ui-sans-serif,sans-serif}.ds-queue-item button{width:max-content;min-height:32px;padding:0 10px;border:1px solid #cad6cf;border-radius:7px;background:#fff;color:#14211e;font:650 11px/1 Inter,ui-sans-serif,sans-serif}.ds-queue-item button:hover{border-color:#9fcbb6;background:#fafcfb;transform:translateY(-1px)}.ds-queue-item button:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}"
+    },
+    {
+      "name": "Knowledge Workspace",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "Index-first knowledge and research surface with explicit local/live/fallback provenance.",
+      "html": "<section class=\"ds-knowledge-workspace\"><div class=\"ds-knowledge-summary\"><strong>知识包 · 0.2.0</strong><span>6 来源 · 54 条新知识</span></div><details class=\"ds-knowledge-sources\"><summary>公开来源入口 · 6 个</summary><a href=\"https://eur-lex.europa.eu/\">CELEX 官方入口 ↗</a></details><label class=\"ds-knowledge-query\"><span>问题</span><textarea placeholder=\"例如：30W / IP44 的防护补测能否沿用原 IP20 报告？\"></textarea></label><div class=\"ds-knowledge-mode\">仅本地索引·未联网</div></section>",
+      "css": ".ds-knowledge-workspace{display:grid;gap:13px;padding:17px 18px;border:1px solid #dce4df;border-radius:9px;background:#fff;color:#14211e}.ds-knowledge-summary{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.ds-knowledge-summary strong{font:700 16px/1.25 Inter,ui-sans-serif,sans-serif}.ds-knowledge-summary span{color:#60706a;font:400 11px/1.35 Inter,ui-sans-serif,sans-serif}.ds-knowledge-sources{border-top:1px solid #dce4df;border-bottom:1px solid #dce4df;padding:10px 0}.ds-knowledge-sources summary{cursor:pointer;color:#0e6950;font:650 12px/1.3 Inter,ui-sans-serif,sans-serif}.ds-knowledge-sources a{display:inline-flex;margin-top:9px;color:#0e6950;font:400 11px/1.4 Inter,ui-sans-serif,sans-serif}.ds-knowledge-query{display:grid;gap:6px}.ds-knowledge-query>span{color:#60706a;font:400 10px/1.2 Inter,ui-sans-serif,sans-serif}.ds-knowledge-query textarea{min-height:72px;padding:9px;border:1px solid #dce4df;border-radius:5px;background:#fbfcfb;color:#14211e;font:400 12px/1.5 Inter,ui-sans-serif,sans-serif;resize:vertical;outline:0;transition:border-color .15s ease,box-shadow .15s ease}.ds-knowledge-query textarea::placeholder{color:#66756e}.ds-knowledge-query textarea:focus{border-color:#8dbba7;background:#fff;box-shadow:0 0 0 3px rgba(45,131,96,.09)}.ds-knowledge-query textarea:focus-visible{outline:3px solid rgba(42,126,96,.3);outline-offset:2px}.ds-knowledge-mode{width:max-content;padding:5px 7px;border:1px solid #c6e3d3;border-radius:4px;background:#eff9f2;color:#26734e;font:650 10px/1.2 Inter,ui-sans-serif,sans-serif}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Evidence Ledger",
+    "overview": "TradeTwin is a work surface for a live trade change, not a promotional dashboard. The implementation treats the interface like a clear piece of trade paperwork: a dark green rail establishes the working context, a cool-white sheet carries the case, and aligned columns keep configuration, evidence, cost, and next action readable together. The visual world is compact, quiet, and operational; the first viewport leads with the case and its delta rather than a welcome hero.\n\nThe code-led Operate build uses the trade-paperwork-clarity direction from `.impeccable/surfaces/src-app-tsx.md`: cold whites, ink greens, pale blue/amber/red states, one-pixel rules, and small consistent control radii. It keeps provenance visible through synthetic-data callouts, evidence-page drawers, model badges, and status pills. The landed A surface adds a queue-first entry without replacing the focused single-case work surface: the queue compares derived state, then the detail view carries configuration, evidence, bill, and response in one reading order. KnowledgeWorkspace extends the same ledger language to indexed sources, searchable entries, explicit local/live/fallback modes, and inline citations without introducing a second visual world. This finish-review sync records the built world rather than replacing it with a new visual direction. It is a record of the implemented UI, not a claim that accessibility or production visual QA is complete. Source evidence: `src/styles.css` custom properties and selectors; `src/App.tsx`, `src/components/CaseQueue.tsx`, `src/components/KnowledgeWorkspace.tsx`, and `src/queueUtils.ts` for queue, workspace, evidence, knowledge, audit, and settings behavior.",
+    "keyCharacteristics": [
+      "Dark green navigation rail with a white, sticky utility bar.",
+      "Paper-like panels made from flat surfaces, hairline borders, and restrained shadows.",
+      "Compact information hierarchy: an observed 8–14px metadata ladder, 16–24px section and metric titles, and a 25–35px case heading.",
+      "Semantic state color is reserved for retest, reuse, update, review, warning, model, and synthetic-data cues.",
+      "Configuration comparison and evidence-page references are the signature interactions.",
+      "Queue-first case discovery with visible status text, derived change chips, explicit unknown fees, and a single “进入案件” action.",
+      "Detail navigation and unsaved-change guards preserve the case context while the user moves between configuration, evidence, bill, and quote.",
+      "KnowledgeWorkspace keeps index status, six public source entries, searchable knowledge rows, and research provenance in the same paper-ledger hierarchy.",
+      "Inline research citations, separate asOf/checkedAt dates, and explicit local/live/fallback labels make evidence status scannable without overstating connectivity."
+    ],
+    "rules": [
+      { "name": "The State-First Color Rule", "body": "Color must explain a workflow state or a provenance signal before it decorates a surface; retest, reuse, update, review, model, and synthetic data keep their distinct low-saturation treatments.", "section": "colors" },
+      { "name": "The Ink-on-Paper Rule", "body": "Keep the working sheet light and legible; reserve the deepest green for navigation and high-confidence action hierarchy.", "section": "colors" },
+      { "name": "The Compact Ledger Rule", "body": "Use the smallest readable size for metadata and state labels, but preserve a clear jump to 16–18px panel titles and the 25–35px case heading.", "section": "typography" },
+      { "name": "The Task-Order Rule", "body": "On narrow screens, preserve the sequence of case context → configuration → bill → evidence/conversation; responsive stacking is a workflow decision, not a cosmetic collapse.", "section": "layout" },
+      { "name": "The Queue Truth Rule", "body": "Queue status, change chips, fee labels, and sort order must come from the case record and deterministic result; unknown is a visible state, never a zero fallback.", "section": "layout" },
+      { "name": "The Flat-by-Default Rule", "body": "Borders and paper tonal contrast carry normal hierarchy; stronger shadows appear only for notices, drawers, dialogs, and focused interaction.", "section": "elevation" },
+      { "name": "The Hairline Boundary Rule", "body": "Use a one-pixel separator to expose a relationship or state change; do not replace every boundary with a shadow.", "section": "shapes" },
+      { "name": "The Guarded Save Rule", "body": "A downstream conversation, option, or quote action may run only after the current draft has saved successfully; preserving the user's input is part of the component state, not a notification afterthought.", "section": "components" },
+      { "name": "The Evidence Status Rule", "body": "A research card must make it obvious whether the answer came from local index, validated live search, or a fallback; no green treatment may imply live connectivity when checkedAt is null.", "section": "components" }
+    ],
+    "dos": [
+      "Do use the existing green-on-paper palette and semantic status colors for real workflow state.",
+      "Do keep evidence, page number, source text, and synthetic provenance visible near the conclusion they support.",
+      "Do preserve the 1px border and compact spacing rhythm before reaching for stronger elevation.",
+      "Do keep focus-visible outlines, labeled fields, semantic buttons, loading states, and reduced-motion behavior present in new surfaces.",
+      "Do preserve the #dialog-root portal, inert siblings, focus restoration, Escape close, mobile three-step workflow, and readable audit summaries.",
+      "Do keep the model mode, fallback state, and “演示数据环境” treatment visible whenever generated output is shown.",
+      "Do keep queue search, status filters, fee/lead-time labels, and customer changes derived from the same case record; show unknown cost explicitly.",
+      "Do move from queue comparison into a focused case and retain the active queue conditions when returning.",
+      "Do keep KnowledgeWorkspace package counts, source scope, full entry provenance, asOf/checkedAt, and research mode visible near the answer they qualify.",
+      "Do use native disclosure and keyboard-visible focus for public sources and entry rows; let Chinese, English, German, and long citation text wrap within the panel."
+    ],
+    "donts": [
+      "Don't introduce a marketing hero, decorative dashboard graphic, paper texture, stamp motif, or gradient that the implementation does not use.",
+      "Don't use the primary green as a generic decoration when amber/red/blue state semantics are required.",
+      "Don't turn synthetic reports, planning fees, or model output into an unqualified certification or delivery promise through visual emphasis.",
+      "Don't widen the sidebar or add a second navigation system without preserving the 240px/220px rail behavior and 860px drawer transition.",
+      "Don't claim complete accessibility or production polish from this source-derived record; verify new changes against the actual UI.",
+      "Don't force a dense table below the 1024px queue breakpoint, or hide the Menu/X control, drawer scroll, focus loop, Escape close, or inert behavior on mobile.",
+      "Don't discard dirty configuration when save fails, and don't let chat, option selection, or quote generation continue after a failed automatic save.",
+      "Don't label a local index result as 已联网, or use a source index URL as if it were a citation from the current web search.",
+      "Don't collapse canonical source IDs and same-domain supplemental pages into one provenance label, and don't let a missing checkedAt imply a fresh review."
+    ]
+  }
+}

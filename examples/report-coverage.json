@@ -1,0 +1,91 @@
+{
+  "title": "新增 36W / IP44 温升与防护报告（合成导入样例）",
+  "kind": "safety",
+  "coverage": {
+    "series": "NL-L",
+    "powerMinW": 18,
+    "powerMaxW": 40,
+    "ipLevels": [
+      "IP20",
+      "IP44"
+    ],
+    "drivers": [
+      "DRV-A"
+    ],
+    "materials": [
+      "original-material"
+    ],
+    "markets": [
+      "DE",
+      "EU"
+    ],
+    "tests": [
+      "temperature",
+      "ip"
+    ],
+    "confidence": 0.9
+  },
+  "pages": [
+    {
+      "page": 1,
+      "text": "合成示意报告：NL-L 系列，18W–40W，DRV-A，original-material，DE/EU。温升与防护项目已测试，范围包括 IP20 和 IP44。此文件不是实际检测机构报告。"
+    }
+  ],
+  "notes": "仅用于验证导入、人工确认和重新推演。上传后必须逐项核验，示例数据不得作为真实认证证据。",
+  "testScopes": {
+    "temperature": {
+      "coverage": {
+        "series": "NL-L",
+        "powerMinW": 18,
+        "powerMaxW": 40,
+        "ipLevels": [
+          "IP20",
+          "IP44"
+        ],
+        "drivers": [
+          "DRV-A"
+        ],
+        "materials": [
+          "original-material"
+        ],
+        "markets": [
+          "DE",
+          "EU"
+        ],
+        "tests": [
+          "temperature"
+        ],
+        "confidence": 0.9
+      },
+      "page": 1,
+      "quote": "合成示意报告：NL-L 系列，18W–40W，DRV-A，original-material，DE/EU。温升与防护项目已测试，范围包括 IP20 和 IP44。此文件不是实际检测机构报告。"
+    },
+    "ip": {
+      "coverage": {
+        "series": "NL-L",
+        "powerMinW": 18,
+        "powerMaxW": 40,
+        "ipLevels": [
+          "IP20",
+          "IP44"
+        ],
+        "drivers": [
+          "DRV-A"
+        ],
+        "materials": [
+          "original-material"
+        ],
+        "markets": [
+          "DE",
+          "EU"
+        ],
+        "tests": [
+          "ip"
+        ],
+        "confidence": 0.9
+      },
+      "page": 1,
+      "quote": "合成示意报告：NL-L 系列，18W–40W，DRV-A，original-material，DE/EU。温升与防护项目已测试，范围包括 IP20 和 IP44。此文件不是实际检测机构报告。"
+    }
+  }
+}

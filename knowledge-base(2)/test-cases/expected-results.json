@@ -1,0 +1,20 @@
+{
+  "test_set_id": "HARD-ISSUE-SYNTHETIC-001",
+  "status": "synthetic_demo",
+  "scope": {"market":"EU","product_scope":"indoor_fixed_led_luminaire"},
+  "metric_template": {
+    "hard_issue_total": null,
+    "true_positive": null,
+    "false_negative": null,
+    "recall_formula": "TP / (TP + FN)",
+    "page_evidence_total": null,
+    "page_evidence_correct": null,
+    "note": "由应用团队运行后填写；本文件不预先宣称 98% 达标。"
+  },
+  "packs": [
+    {"pack_id":"PACK-BASELINE-001","expected_categories":{"NO_ISSUE_FOUND_IN_SCOPE":2,"RECOMMENDATION":3,"MANUAL_REVIEW":2,"HARD_ISSUE_CANDIDATE":0}},
+    {"pack_id":"PACK-CONFLICT-001","expected_categories":{"HARD_ISSUE_CANDIDATE":29,"RECOMMENDATION":0,"MANUAL_REVIEW":0,"NO_ISSUE_FOUND_IN_SCOPE":0}},
+    {"pack_id":"PACK-MISSING-001","expected_categories":{"HARD_ISSUE_CANDIDATE":11,"RECOMMENDATION":0,"MANUAL_REVIEW":3,"NO_ISSUE_FOUND_IN_SCOPE":0}}
+  ],
+  "interpretation": "预期结果用于检查分类和证据回传结构。资料缺失、不可读和适用性不确定必须保留人工复核状态，不应自动转为通过或违法。"
+}
