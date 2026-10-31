@@ -1,0 +1,116 @@
+{
+  "synthetic": true,
+  "data_status": "synthetic_demo",
+  "product_family_id": "FAMILY-NL-INDOOR-LED-001",
+  "canonical_product": {
+    "sku": "NL-L24",
+    "model": "NL-L24",
+    "product_name": "NordLuma Fixed Indoor LED Luminaire",
+    "product_type": "indoor_fixed_led_luminaire",
+    "market": "EU",
+    "rated_power_w": 24,
+    "input_voltage": "220-240 V AC",
+    "frequency": "50/60 Hz",
+    "protection_rating": "IP20",
+    "driver_model": "DRV-A",
+    "intended_use": "indoor fixed installation",
+    "document_versions": {
+      "product_spec": "V1.4",
+      "declaration": "V1.3",
+      "test_report": "V1.1",
+      "label": "V1.2",
+      "instructions": "V1.1"
+    },
+    "test_sample": {
+      "sample_id": "SAMPLE-NL-L24-01",
+      "sample_model": "NL-L24",
+      "configuration": "24W / 220-240 V AC / IP20 / DRV-A"
+    },
+    "report_coverage": {
+      "report_id": "TR-DEMO-NL-L24-01",
+      "power_range_w": {"min": 18, "max": 30},
+      "protection_rating": "IP20",
+      "driver_model": "DRV-A",
+      "covered_test_items": ["thermal_rise", "electrical_safety", "EMC", "RoHS_document_review"],
+      "coverage_note": "演示映射；不是实验室授权结论。"
+    },
+    "languages": ["zh-CN", "en", "de"],
+    "source_note": "演示主数据；不代表真实企业产品。"
+  },
+  "change_event": {
+    "event_id": "CHANGE-24W-IP20-TO-36W-IP44-001",
+    "from": {
+      "model": "NL-L24",
+      "rated_power_w": 24,
+      "protection_rating": "IP20",
+      "driver_model": "DRV-A"
+    },
+    "to": {
+      "model": "NL-L36",
+      "rated_power_w": 36,
+      "protection_rating": "IP44",
+      "driver_model": "DRV-A"
+    },
+    "reason": "买家询盘提出更高功率与更高防护等级配置",
+    "status": "requires_cross_document_review",
+    "synthetic": true
+  },
+  "parameter_test_mapping": [
+    {
+      "change": "rated_power_w 24 -> 36",
+      "test_item": "thermal_rise",
+      "coverage_status": "NEEDS_RETEST",
+      "reason": "36W 超出报告覆盖上限 30W",
+      "source_type": "synthetic_demo_mapping",
+      "human_review_required": true
+    },
+    {
+      "change": "protection_rating IP20 -> IP44",
+      "test_item": "ingress_protection",
+      "coverage_status": "NEEDS_RETEST",
+      "reason": "防护等级从 IP20 变更为 IP44，现有报告仅覆盖 IP20",
+      "source_type": "synthetic_demo_mapping",
+      "human_review_required": true
+    },
+    {
+      "change": "driver_model unchanged DRV-A",
+      "test_item": "EMC",
+      "coverage_status": "MANUAL_REVIEW",
+      "reason": "驱动电源未变时可提出沿用假设，但需工程/品质确认",
+      "source_type": "synthetic_demo_mapping",
+      "human_review_required": true
+    },
+    {
+      "change": "configuration update",
+      "test_item": "DoC_label_German_instructions",
+      "coverage_status": "DOCUMENT_UPDATE",
+      "reason": "型号、功率、防护等级或目标语言字段需要与最终配置同步",
+      "source_type": "synthetic_demo_mapping",
+      "human_review_required": true
+    }
+  ],
+  "synthetic_cost_schedule": {
+    "currency": "EUR",
+    "status": "synthetic_demo_pending_lab_confirmation",
+    "assumption_version": "COST-DEMO-V0.1",
+    "options": [
+      {
+        "option_id": "A",
+        "assumption": "保持 DRV-A；补充温升/耐热与 IP44 防护测试；更新 DoC、标签和德语说明书",
+        "estimated_cost_eur": 2100,
+        "estimated_days": 8,
+        "synthetic": true,
+        "human_confirmed": false
+      },
+      {
+        "option_id": "B",
+        "assumption": "更换新驱动电源；除 A 项外增加电气与 EMC 复核",
+        "estimated_cost_eur": 3600,
+        "estimated_days": 12,
+        "synthetic": true,
+        "human_confirmed": false
+      }
+    ],
+    "disclaimer": "费用、周期和映射仅用于演示，不是实验室报价、认证结论或交付承诺。"
+  }
+}

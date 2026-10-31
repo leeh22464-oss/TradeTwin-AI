@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>贸链通 TradeTwin · 变更询盘工作台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">贸</span>
+    <div>
+      <strong>贸链通 TradeTwin</strong>
+      <small>欧盟 LED 灯具 · 变更询盘 → 证据覆盖 → 报价选项 → 可审回复</small>
+    </div>
+  </div>
+  <div class="pills" id="pills"></div>
+  <button class="btn" id="btn-settings">邮箱设置</button>
+</header>
+
+<main class="layout">
+  <aside class="panel left">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="mail">邮箱</button>
+      <button class="tab" data-tab="manual">手动输入</button>
+    </div>
+
+    <section id="tab-mail" class="tab-body">
+      <div class="toolbar">
+        <button id="btn-sync" class="btn">同步收件箱</button>
+        <label class="switch"><input type="checkbox" id="auto-sync"> 每 30 秒</label>
+        <button id="btn-reset" class="btn subtle" title="仅离线演示模式">重置演示</button>
+      </div>
+      <p class="hint" id="mail-status"></p>
+      <ul class="threads" id="threads"></ul>
+    </section>
+
+    <section id="tab-manual" class="tab-body hidden">
+      <label class="field">渠道
+        <select id="manual-channel">
+          <option value="email">邮件（独立站 / 展会客户）</option>
+          <option value="alibaba_rfq">国际站 RFQ / 旺旺</option>
+        </select>
+      </label>
+      <label class="field">买家称呼（可选）<input id="manual-buyer" placeholder="Anna Becker"></label>
+      <label class="field">买家消息<textarea id="manual-text" rows="9" placeholder="粘贴买家原文，支持英 / 德 / 中"></textarea></label>
+      <div class="samples">
+        <span>示例：</span>
+        <button class="chip" data-sample="de">德语 36W/IP44</button>
+        <button class="chip" data-sample="en">英语 28W</button>
+        <button class="chip" data-sample="zh">中文 信息不全</button>
+      </div>
+      <button id="btn-manual" class="btn primary wide">分析这条消息</button>
+    </section>
+  </aside>
+
+  <section class="panel center" id="center">
+    <div class="empty" id="empty">
+      <h2>选一封买家邮件，或粘贴一条询盘</h2>
+      <p>系统会抽取变更参数（每个值都附原文出处），对照现有检测报告判断哪些证据还能沿用、哪些需要补测，并把补测代价算进报价方案。</p>
+      <ol>
+        <li>模型只负责理解和润色；覆盖判断、费用、交期全部由规则计算。</li>
+        <li>回复只生成草稿，不会自动发送。</li>
+        <li>所有费用和周期均为合成演示数据，需工程 / 实验室确认。</li>
+      </ol>
+    </div>
+    <div id="result" class="hidden"></div>
+  </section>
+
+  <aside class="panel right" id="right">
+    <div class="empty small" id="reply-empty">分析后在这里审核和修改回复。</div>
+    <div id="reply" class="hidden">
+      <div class="tabs" id="lang-tabs"></div>
+      <label class="field">主题<input id="reply-subject"></label>
+      <label class="field">正文（可直接改，或自己写一版让 AI 审）
+        <textarea id="reply-body" rows="16"></textarea>
+      </label>
+      <div class="toolbar">
+        <button id="btn-check" class="btn">重新校验</button>
+        <button id="btn-copy" class="btn">复制</button>
+        <button id="btn-draft" class="btn primary hidden">存为邮箱草稿</button>
+        <button id="btn-send" class="btn danger hidden">确认发送</button>
+      </div>
+      <div id="check-box"></div>
+
+      <div class="round2">
+        <h3>第二轮</h3>
+        <div class="seg">
+          <label><input type="radio" name="r2kind" value="instruction" checked> 我的修改指令</label>
+          <label><input type="radio" name="r2kind" value="buyer"> 买家新消息</label>
+        </div>
+        <textarea id="r2-text" rows="3" placeholder="例如：选方案C，先不要承诺交期 / 只要德语"></textarea>
+        <div class="toolbar">
+          <button id="btn-r2" class="btn primary">生成新版本</button>
+          <button id="btn-simulate" class="btn subtle hidden">模拟买家回信</button>
+        </div>
+      </div>
+
+      <details class="diff-box" id="diff-box">
+        <summary>与上一版本对比</summary>
+        <div id="diff"></div>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<dialog id="mail-dialog" class="dialog">
+  <form method="dialog" id="mail-form">
+    <div class="dialog-head">
+      <h2>邮箱设置</h2>
+      <span class="sub" id="mail-source"></span>
+    </div>
+    <label class="field">邮箱类型
+      <select id="mail-preset">
+        <option value="">自定义</option>
+        <option value="qq">QQ 邮箱</option>
+        <option value="163">163 邮箱</option>
+        <option value="126">126 邮箱</option>
+        <option value="exmail">腾讯企业邮</option>
+        <option value="aliyun">阿里企业邮</option>
+        <option value="gmail">Gmail</option>
+      </select>
+    </label>
+    <p class="hint" id="mail-help">先在邮箱网页版的设置里开启 IMAP/SMTP 服务，生成授权码。</p>
+
+    <div class="grid2">
+      <label class="field">邮箱账号<input name="user" autocomplete="username" placeholder="sales@example.com"></label>
+      <label class="field">授权码（不是登录密码）<input name="password" type="password" autocomplete="current-password" placeholder="留空表示不修改"></label>
+    </div>
+
+    <fieldset>
+      <legend>收信 IMAP（必填）</legend>
+      <div class="grid2">
+        <label class="field">服务器<input name="imap_host" placeholder="imap.qq.com"></label>
+        <label class="field">端口（SSL）<input name="imap_port" type="number" value="993"></label>
+      </div>
+      <label class="field">草稿箱名称（可选，自动识别失败时填写）<input name="drafts_folder" placeholder="Drafts"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>发信 SMTP（可选，填了才会出现“确认发送”按钮）</legend>
+      <div class="grid3">
+        <label class="field">服务器<input name="smtp_host" placeholder="smtp.qq.com"></label>
+        <label class="field">端口<input name="smtp_port" type="number" value="465"></label>
+        <label class="field">加密
+          <select name="smtp_security"><option value="ssl">SSL</option><option value="starttls">STARTTLS</option></select>
+        </label>
+      </div>
+    </fieldset>
+
+    <label class="field">邮件署名<input name="signature" placeholder="NordLuma Lighting Sales Team"></label>
+    <p class="hint">不支持 POP3：POP3 无法把回复存进草稿箱，也拿不到邮件的回复关系。授权码只保存在本机 app/runtime/mail-settings.json。</p>
+
+    <div id="mail-test" class="mail-test"></div>
+    <div class="toolbar dialog-actions">
+      <button type="button" class="btn subtle" id="mail-clear">清除并回到离线样例</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" id="mail-test-btn">测试连接</button>
+      <button type="button" class="btn primary" id="mail-save">保存并同步</button>
+      <button type="button" class="btn" id="mail-close">关闭</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast hidden" id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
