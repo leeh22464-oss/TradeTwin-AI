@@ -51,9 +51,12 @@ describe('case queue derivation', () => {
   });
 
   it('does not turn the normal synthetic-data warning into an unknown amount', () => {
-    const retestAnalysis = analyzeChange({ ...BASE_CONFIG, powerW: 36, ip: 'IP44' }, seedReports);
+    // A known driver change has explicit retests, unlike the unchanged-driver
+    // EMC case which now correctly remains pending manual review.
+    const retestAnalysis = analyzeChange({ ...BASE_CONFIG, powerW: 36, ip: 'IP44', driver: 'DRV-B' }, seedReports);
+    expect(retestAnalysis.reviewCount).toBe(0);
     const retestSummary = getQueueCommercial(makeCase({ analysis: retestAnalysis }));
-    expect(retestSummary.feeLabel).toContain('2.100');
+    expect(retestSummary.feeLabel).toContain('3.600');
     expect(retestSummary.isUnknown).toBe(false);
     const zeroAnalysis = analyzeChange(BASE_CONFIG, seedReports);
     const zeroSummary = getQueueCommercial(makeCase({ analysis: zeroAnalysis }));

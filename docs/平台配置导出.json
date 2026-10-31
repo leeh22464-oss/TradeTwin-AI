@@ -1,11 +1,11 @@
 {
   "product": "TradeTwin AI",
-  "schemaVersion": 1,
-  "ruleVersion": "rules-2026.10.31-demo.v1",
+  "schemaVersion": 2,
+  "ruleVersion": "rules-2026.10.31-demo.v2+kb.0.2.0",
   "mode": "synthetic-demonstration",
   "scope": "EU/DE indoor fixed LED luminaires; expert confirmation required",
   "baseConfig": {
-    "model": "NL-L",
+    "model": "NL-L24",
     "powerW": 24,
     "ip": "IP20",
     "driver": "DRV-A",
@@ -13,12 +13,14 @@
     "market": "DE"
   },
   "schedule": {
-    "policy": "parallel-tests-then-documents",
-    "expression": "max(required test days) + document update days"
+    "policy": "serial-preparation-parallel-tests-serial-documents",
+    "expression": "driver preparation days + max(required test days) + document update days"
   },
   "model": {
-    "protocol": "OpenAI-compatible Chat Completions",
+    "protocol": "Official OpenAI Responses; optional legacy OpenAI-compatible Chat Completions",
     "environmentKeys": [
+      "OPENAI_API_KEY",
+      "OPENAI_MODEL",
       "LLM_BASE_URL",
       "LLM_API_KEY",
       "LLM_MODEL"
@@ -40,7 +42,46 @@
   "knowledge": {
     "storage": "SQLite and local Markdown",
     "optionalVaultKey": "OBSIDIAN_VAULT_PATH",
-    "entries": [
+    "runtime": {
+      "profileId": "tradetwin-runtime-kb-demo",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "fingerprint": "f94c51dde3b26aca963b6b95219064307532e0f02f5103599c93c13f54b16f60",
+      "sources": [
+        {
+          "path": "knowledge/runtime-profile.json",
+          "sha256": "ac356d32b765e70108da14e79bc0ae9467539ebbe1af7de12212c9f9b2fcc3d5"
+        },
+        {
+          "path": "knowledge/runtime-profile.md",
+          "sha256": "528ef44264d7377ecf321187dcc3787dea9cbe4441f20b75c6a771c833e7e5b0"
+        },
+        {
+          "path": "knowledge-base(2)/synthetic-data/canonical-product.json",
+          "sha256": "fd0636e528d0a0a83dea73a73293d9daabe35fb21a1d26fb2ddf78339adb8a86"
+        },
+        {
+          "path": "knowledge-base(2)/synthetic-data/packs/baseline/02-product-spec.md",
+          "sha256": "1fec1469d13742b2e8b8722b5bc5ee251ae466a7945c887758dc39f38c42df9c"
+        },
+        {
+          "path": "knowledge-base(2)/synthetic-data/packs/baseline/03-declaration-of-conformity.md",
+          "sha256": "4b1069d9fafe2438b7cd83549b5264024f0bdf377fcf1d5f529f5db6be693ae9"
+        },
+        {
+          "path": "knowledge-base(2)/synthetic-data/packs/baseline/04-test-report.md",
+          "sha256": "9c14ec4030d5eb3256f21edbb5c7870bb3316c55ee9f19ba85185d6f8b0e545b"
+        },
+        {
+          "path": "knowledge-base(2)/synthetic-data/packs/baseline/05-label-and-instructions.md",
+          "sha256": "522d0be6a55830408f450c17a6d492b339fcabdd8bacc88e0d43c9e667059a60"
+        },
+        {
+          "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+          "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+        }
+      ]
+    },
+    "seedEntriesOnly": [
       {
         "id": "kb-coverage-model",
         "title": "证据覆盖范围推理说明",
@@ -83,111 +124,283 @@
       }
     ]
   },
+  "policy": {
+    "profileId": "tradetwin-runtime-kb-demo",
+    "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+    "requireEmcReview": true,
+    "driverPreparationDays": 3,
+    "ruleIds": {
+      "coverage": [
+        "RULE-COVERAGE-RANGE-001"
+      ],
+      "mapping": [
+        "RULE-PARAMETER-TEST-MAP-001"
+      ],
+      "minimumRetest": [
+        "RULE-RETEST-MINIMUM-001"
+      ],
+      "driverReuse": [
+        "RULE-DRIVER-REUSE-001"
+      ],
+      "documentUpdate": [
+        "RULE-DOCUMENT-UPDATE-001"
+      ],
+      "quoteAssumption": [
+        "RULE-QUOTE-ASSUMPTION-001"
+      ],
+      "contract": [
+        "RULE-QUOTE-ASSUMPTION-001"
+      ]
+    },
+    "modelAliases": {
+      "NL-L": [
+        "NL-L24"
+      ]
+    },
+    "costs": [
+      {
+        "id": "temperature",
+        "title": "温升与耐热相关测试",
+        "feeEur": 1200,
+        "days": 6,
+        "group": "test"
+      },
+      {
+        "id": "ip",
+        "title": "防尘防水测试",
+        "feeEur": 900,
+        "days": 5,
+        "group": "test"
+      },
+      {
+        "id": "emc",
+        "title": "EMC 测试",
+        "feeEur": 1500,
+        "days": 7,
+        "group": "test"
+      },
+      {
+        "id": "electrical-strength",
+        "title": "电气强度与绝缘复核",
+        "feeEur": 0,
+        "days": 3,
+        "group": "test"
+      },
+      {
+        "id": "rohs",
+        "title": "RoHS / REACH 材料证据复核",
+        "feeEur": 0,
+        "days": 3,
+        "group": "test"
+      },
+      {
+        "id": "document-update",
+        "title": "DoC、标签、规格书与德语说明书更新",
+        "feeEur": 0,
+        "days": 2,
+        "group": "document"
+      },
+      {
+        "id": "driver-preparation",
+        "title": "新驱动电源打样与准备",
+        "feeEur": 0,
+        "days": 3,
+        "group": "preparation"
+      }
+    ]
+  },
   "rules": [
     {
-      "id": "R-SERIES-001",
-      "title": "型号系列一致",
-      "description": "报告系列必须覆盖当前型号系列。",
-      "category": "coverage",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-POWER-001",
-      "title": "功率范围覆盖",
-      "description": "逐个测试项目核对功率区间，超出区间不能沿用。",
-      "category": "coverage",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-IP-001",
-      "title": "防护等级变化",
-      "description": "IP 等级变化需要核对并补做对应防尘防水测试。",
-      "category": "coverage",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-DRIVER-001",
-      "title": "驱动电源变化",
-      "description": "驱动更换影响 EMC 与电气安全复核。",
-      "category": "mapping",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-MATERIAL-001",
-      "title": "材料变化",
-      "description": "材料变化影响 RoHS/REACH 证据与供应商声明。",
-      "category": "mapping",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-MARKET-001",
-      "title": "目标市场覆盖",
-      "description": "报告或声明必须有目标市场适用范围。",
-      "category": "coverage",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-TEMP-001",
-      "title": "温升测试映射",
-      "description": "功率超出温升报告区间时生成温升补测。",
-      "category": "mapping",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-IP-002",
-      "title": "防尘防水测试映射",
-      "description": "防护等级变化且报告未覆盖新等级时生成 IP 补测。",
-      "category": "mapping",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-EMC-001",
-      "title": "EMC 独立条件",
-      "description": "EMC 可沿用需要驱动、功率、系列、材料和市场等条件共同匹配。",
-      "category": "mapping",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-ROHS-001",
-      "title": "RoHS 材料证据",
-      "description": "材料与报告不一致时生成 RoHS/REACH 复核。",
-      "category": "mapping",
-      "version": "rules-2026.10.31-demo.v1"
-    },
-    {
-      "id": "R-DOC-001",
-      "title": "DoC 更新",
-      "description": "功率、IP、驱动、材料或市场变化后更新 DoC。",
+      "id": "RULE-DOC-IDENTITY-001",
+      "title": "跨文件型号身份一致性",
+      "description": "规格书、DoC、测试报告、标签中的型号/SKU应与已确认配置一致。冲突只说明需要阻断式复核，不自动认定违法或无法清关。",
       "category": "documents",
-      "version": "rules-2026.10.31-demo.v1"
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-DOC-IDENTITY-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
     },
     {
-      "id": "R-LABEL-001",
-      "title": "标签更新",
-      "description": "功率或 IP 变化后更新产品标签。",
+      "id": "RULE-RATED-POWER-001",
+      "title": "额定功率一致性",
+      "description": "规格书、DoC、报告、标签中的额定功率与当前配置一致。数值冲突是硬伤候选；不能仅凭冲突断言适用法规结论。",
       "category": "documents",
-      "version": "rules-2026.10.31-demo.v1"
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-RATED-POWER-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
     },
     {
-      "id": "R-MANUAL-001",
-      "title": "说明书更新",
-      "description": "功率、IP、驱动、市场或安装条件变化后更新说明书。",
+      "id": "RULE-VOLTAGE-001",
+      "title": "输入电压字段一致性",
+      "description": "规格书、DoC、测试报告和标签的输入电压范围不应无依据地互相冲突。发现冲突后要求工程/品质确认真实配置和报告覆盖关系。",
       "category": "documents",
-      "version": "rules-2026.10.31-demo.v1"
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-VOLTAGE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
     },
     {
-      "id": "R-CONTRACT-001",
-      "title": "交期承诺风险",
-      "description": "补测或排期未确认时不承诺原交期。",
-      "category": "contract",
-      "version": "rules-2026.10.31-demo.v1"
+      "id": "RULE-DOC-VERSION-001",
+      "title": "文件版本与日期链路",
+      "description": "旧版文件不能在没有解释的情况下与当前配置混用。版本差异必须由文件负责人确认是否仍覆盖当前配置。",
+      "category": "documents",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-DOC-VERSION-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
     },
     {
-      "id": "R-REVIEW-001",
-      "title": "证据不足升级",
-      "description": "缺失、未验证或范围不明时进入人工核验。",
+      "id": "RULE-TEST-SAMPLE-LINK-001",
+      "title": "测试报告样品与产品关联",
+      "description": "测试报告样品、型号或配置应能追溯到当前产品主数据。样品不一致时只输出覆盖关系待核验，不自动否定报告。",
+      "category": "review",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-TEST-SAMPLE-LINK-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-ROHS-EVIDENCE-001",
+      "title": "受限物质证据引用完整性",
+      "description": "记录支持声明的证据来源、版本或供应链文件，不以空白字段自动判定违规。证据缺失进入人工复核，不能直接写成违法或不合格。",
+      "category": "review",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-ROHS-EVIDENCE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-ECODESIGN-SCOPE-001",
+      "title": "生态设计对象适用性确认",
+      "description": "先确认被检查对象是完整灯具、光源还是独立控制装置，再选取要求。未确认对象前不得套用光源或控制装置要求。",
+      "category": "review",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-ECODESIGN-SCOPE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-LABEL-LANGUAGE-001",
+      "title": "标签与说明书语言/字段完整性",
+      "description": "检查型号、额定值、警示信息和目标语言字段是否存在并可读。缺少目标语言文件是资料待补充或人工确认项，不自动等同于监管违规。",
+      "category": "documents",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-LABEL-LANGUAGE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-FIELD-COMPLETE-001",
+      "title": "关键产品字段完整性",
+      "description": "关键产品字段缺失时阻止确定性比对并创建补充/人工复核任务。字段缺失只说明当前资料无法完成核验，不自动判违法或无法清关。",
       "category": "safety",
-      "version": "rules-2026.10.31-demo.v1"
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-FIELD-COMPLETE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-FILE-PRESENCE-001",
+      "title": "资料包文件存在性与可读性",
+      "description": "记录预期文件是否存在、是否可读以及缺失原因。缺件或不可读不自动判违法；先补件或人工确认适用性。",
+      "category": "safety",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-FILE-PRESENCE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-COVERAGE-RANGE-001",
+      "title": "测试报告覆盖范围与新参数边界",
+      "description": "将新功率、防护等级和驱动电源与报告覆盖范围逐项比较，区分命中、超范围和缺证据。超出合成覆盖范围时输出需补测候选；不得自动推断认证失效或清关失败。",
+      "category": "coverage",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-COVERAGE-RANGE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-PARAMETER-TEST-MAP-001",
+      "title": "参数变更到测试项目映射",
+      "description": "为每个变更参数输出可沿用、需补测、需更新文件或待人工确认的状态。映射是演示辅助，不得包装成统一法规要求或实验室最终方案。",
+      "category": "mapping",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-PARAMETER-TEST-MAP-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-RETEST-MINIMUM-001",
+      "title": "最小补测候选集合",
+      "description": "只列出由变更直接触发的候选项目，并保留排除理由和人工确认点。最小补测是演示建议，不是检测机构报价或强制清单。",
+      "category": "mapping",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-RETEST-MINIMUM-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-DRIVER-REUSE-001",
+      "title": "驱动电源未变时的沿用假设",
+      "description": "可显示‘可能沿用’并引用驱动型号与原报告，但不得自动跳过 EMC 或电气复核。未取得工程/品质确认前，外部回复只能使用待确认措辞。",
+      "category": "mapping",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-DRIVER-REUSE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-DOCUMENT-UPDATE-001",
+      "title": "参数变更后的文件更新清单",
+      "description": "生成 DoC、标签、说明书和报价资料的更新清单，并保留旧版引用。更新清单用于协作，不自动断言某文件一定构成法定必需件。",
+      "category": "documents",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-DOCUMENT-UPDATE-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
+    },
+    {
+      "id": "RULE-QUOTE-ASSUMPTION-001",
+      "title": "报价费用和周期假设可追溯",
+      "description": "每个金额和工作日都必须关联测试项目、假设版本、来源类型、synthetic 标记和人工确认状态。资料不足或实验室不可用时只能输出合成估算或待确认方案，不得生成确定报价。",
+      "category": "quote",
+      "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/public-rules/rule-cards.jsonl",
+        "ruleId": "RULE-QUOTE-ASSUMPTION-001",
+        "sha256": "daa4295caa807dbde2e32fffda40fb47c646a6b7ce9ec0e9347945843da3aa96"
+      }
     }
   ],
   "costs": [
@@ -196,69 +409,112 @@
       "title": "温升与耐热相关测试",
       "feeEur": 1200,
       "days": 6,
-      "group": "test"
+      "group": "test",
+      "knowledgeSource": {
+        "path": "knowledge/runtime-profile.json",
+        "documentId": "tradetwin-runtime-kb-demo",
+        "sha256": "ac356d32b765e70108da14e79bc0ae9467539ebbe1af7de12212c9f9b2fcc3d5"
+      }
     },
     {
       "id": "ip",
       "title": "防尘防水测试",
       "feeEur": 900,
       "days": 5,
-      "group": "test"
+      "group": "test",
+      "knowledgeSource": {
+        "path": "knowledge/runtime-profile.json",
+        "documentId": "tradetwin-runtime-kb-demo",
+        "sha256": "ac356d32b765e70108da14e79bc0ae9467539ebbe1af7de12212c9f9b2fcc3d5"
+      }
     },
     {
       "id": "emc",
       "title": "EMC 测试",
       "feeEur": 1500,
       "days": 7,
-      "group": "test"
+      "group": "test",
+      "knowledgeSource": {
+        "path": "knowledge/runtime-profile.json",
+        "documentId": "tradetwin-runtime-kb-demo",
+        "sha256": "ac356d32b765e70108da14e79bc0ae9467539ebbe1af7de12212c9f9b2fcc3d5"
+      }
     },
     {
       "id": "electrical-strength",
       "title": "电气强度与绝缘复核",
       "feeEur": 0,
       "days": 3,
-      "group": "test"
+      "group": "test",
+      "knowledgeSource": {
+        "path": "knowledge/runtime-profile.json",
+        "documentId": "tradetwin-runtime-kb-demo",
+        "sha256": "ac356d32b765e70108da14e79bc0ae9467539ebbe1af7de12212c9f9b2fcc3d5"
+      }
     },
     {
       "id": "rohs",
       "title": "RoHS / REACH 材料证据复核",
       "feeEur": 0,
       "days": 3,
-      "group": "test"
+      "group": "test",
+      "knowledgeSource": {
+        "path": "knowledge/runtime-profile.json",
+        "documentId": "tradetwin-runtime-kb-demo",
+        "sha256": "ac356d32b765e70108da14e79bc0ae9467539ebbe1af7de12212c9f9b2fcc3d5"
+      }
     },
     {
       "id": "document-update",
       "title": "DoC、标签、规格书与德语说明书更新",
       "feeEur": 0,
       "days": 2,
-      "group": "document"
+      "group": "document",
+      "knowledgeSource": {
+        "path": "knowledge/runtime-profile.json",
+        "documentId": "tradetwin-runtime-kb-demo",
+        "sha256": "ac356d32b765e70108da14e79bc0ae9467539ebbe1af7de12212c9f9b2fcc3d5"
+      }
+    },
+    {
+      "id": "driver-preparation",
+      "title": "新驱动电源打样与准备",
+      "feeEur": 0,
+      "days": 3,
+      "group": "preparation",
+      "knowledgeSource": {
+        "path": "knowledge/runtime-profile.md",
+        "documentId": "tradetwin-runtime-kb-demo",
+        "sha256": "528ef44264d7377ecf321187dcc3787dea9cbe4441f20b75c6a771c833e7e5b0"
+      }
     }
   ],
   "reports": [
     {
-      "id": "TR-001",
-      "title": "安规与环境测试报告 TR-001（示意）",
+      "id": "TR-DEMO-NL-L24-01",
+      "title": "测试报告 TR-DEMO-NL-L24-01（合成演示）",
       "kind": "safety",
       "source": "synthetic",
       "status": "ready",
-      "filename": "TR-001-safety-demo.md",
+      "filename": "04-test-report.md",
+      "filenameEncoding": "utf-8",
       "pageCount": 3,
       "pages": [
         {
           "page": 1,
-          "text": "样品：NL-L 系列；驱动电源 DRV-A；目标市场 EU/DE。"
+          "text": "报告编号：`TR-DEMO-NL-L24-01`（合成编号）\n样品型号：`NL-L24`\n样品 ID：`SAMPLE-NL-L24-01`\n测试配置：`24W / 220-240 V AC / IP20 / DRV-A`。"
         },
         {
           "page": 2,
-          "text": "电气强度与绝缘项目：适用于 NL-L、DRV-A、18W–40W、IP20/IP44。"
+          "text": "报告版本：`V1.1`\n报告日期：`2026-04-12`\n覆盖功率区间：`18–30W`\n覆盖防护等级：`IP20`\n覆盖驱动电源：`DRV-A`\n覆盖测试项目：温升/耐热、电气安全、EMC、RoHS 文档审查。"
         },
         {
           "page": 3,
-          "text": "温升功率范围：18W–30W。防护等级：IP20。已完成温升、耐热、电气强度与防尘防水相关观察。"
+          "text": "覆盖说明：以上覆盖字段均为合成演示映射，不能替代实验室确认或真实测试结论。"
         }
       ],
       "coverage": {
-        "series": "NL-L",
+        "series": "NL-L24",
         "powerMinW": 18,
         "powerMaxW": 30,
         "ipLevels": [
@@ -277,23 +533,25 @@
         "tests": [
           "temperature",
           "electrical-strength",
-          "ip"
+          "emc",
+          "rohs"
         ],
-        "confidence": 0.98
+        "confidence": 0.9
       },
+      "verified": true,
+      "notes": "合成演示数据；演示预设确认状态，不代表真实工程/品质确认或检测机构结论。",
+      "createdAt": "2026-10-31T00:00:00.000Z",
       "testScopes": {
         "temperature": {
           "coverage": {
-            "series": "NL-L",
+            "series": "NL-L24",
             "powerMinW": 18,
             "powerMaxW": 30,
             "ipLevels": [],
             "drivers": [
               "DRV-A"
             ],
-            "materials": [
-              "original-material"
-            ],
+            "materials": [],
             "markets": [
               "EU",
               "DE"
@@ -301,25 +559,21 @@
             "tests": [
               "temperature"
             ],
-            "confidence": 0.98
+            "confidence": 0.9
           },
-          "page": 3,
-          "quote": "温升功率范围：18W–30W。"
+          "page": 2,
+          "quote": "报告版本：`V1.1`\n报告日期：`2026-04-12`\n覆盖功率区间：`18–30W`\n覆盖防护等级：`IP20`\n覆盖驱动电源：`DRV-A`\n覆盖测试项目：温升/耐热、电气安全、EMC、RoHS 文档审查。"
         },
         "ip": {
           "coverage": {
-            "series": "NL-L",
-            "powerMinW": 18,
-            "powerMaxW": 30,
+            "series": "NL-L24",
+            "powerMinW": null,
+            "powerMaxW": null,
             "ipLevels": [
               "IP20"
             ],
-            "drivers": [
-              "DRV-A"
-            ],
-            "materials": [
-              "original-material"
-            ],
+            "drivers": [],
+            "materials": [],
             "markets": [
               "EU",
               "DE"
@@ -327,87 +581,16 @@
             "tests": [
               "ip"
             ],
-            "confidence": 0.98
-          },
-          "page": 3,
-          "quote": "防护等级：IP20。"
-        },
-        "electrical-strength": {
-          "coverage": {
-            "series": "NL-L",
-            "powerMinW": 18,
-            "powerMaxW": 40,
-            "ipLevels": [
-              "IP20",
-              "IP44"
-            ],
-            "drivers": [
-              "DRV-A"
-            ],
-            "materials": [
-              "original-material"
-            ],
-            "markets": [
-              "EU",
-              "DE"
-            ],
-            "tests": [
-              "electrical-strength"
-            ],
-            "confidence": 0.95
+            "confidence": 0.9
           },
           "page": 2,
-          "quote": "电气强度与绝缘项目：适用于 NL-L、DRV-A、18W–40W、IP20/IP44。"
-        }
-      },
-      "verified": true,
-      "notes": "合成示意数据；实际适用范围以检测机构确认的报告原文为准。",
-      "createdAt": "2026-10-31T00:00:00.000Z"
-    },
-    {
-      "id": "TR-002",
-      "title": "EMC 测试报告 TR-002（示意）",
-      "kind": "emc",
-      "source": "synthetic",
-      "status": "ready",
-      "filename": "TR-002-emc-demo.md",
-      "pageCount": 2,
-      "pages": [
-        {
-          "page": 1,
-          "text": "EMC 适用系列：NL-L；驱动电源 DRV-A；材料 original-material；功率 18W–40W。"
+          "quote": "报告版本：`V1.1`\n报告日期：`2026-04-12`\n覆盖功率区间：`18–30W`\n覆盖防护等级：`IP20`\n覆盖驱动电源：`DRV-A`\n覆盖测试项目：温升/耐热、电气安全、EMC、RoHS 文档审查。"
         },
-        {
-          "page": 2,
-          "text": "EMC 测试已完成；IP 等级不作为本报告的独立判定条件。"
-        }
-      ],
-      "coverage": {
-        "series": "NL-L",
-        "powerMinW": 18,
-        "powerMaxW": 40,
-        "ipLevels": [],
-        "drivers": [
-          "DRV-A"
-        ],
-        "materials": [
-          "original-material"
-        ],
-        "markets": [
-          "EU",
-          "DE"
-        ],
-        "tests": [
-          "emc"
-        ],
-        "confidence": 0.96
-      },
-      "testScopes": {
         "emc": {
           "coverage": {
-            "series": "NL-L",
+            "series": "NL-L24",
             "powerMinW": 18,
-            "powerMaxW": 40,
+            "powerMaxW": 30,
             "ipLevels": [],
             "drivers": [
               "DRV-A"
@@ -422,52 +605,36 @@
             "tests": [
               "emc"
             ],
-            "confidence": 0.96
+            "confidence": 0.9
           },
-          "page": 1,
-          "quote": "EMC 适用系列：NL-L；驱动电源 DRV-A；材料 original-material；功率 18W–40W。"
-        }
-      },
-      "verified": true,
-      "notes": "EMC 有独立覆盖条件；驱动相同只是必要条件之一。",
-      "createdAt": "2026-10-31T00:00:00.000Z"
-    },
-    {
-      "id": "TR-003",
-      "title": "RoHS 材料声明 TR-003（示意）",
-      "kind": "rohs",
-      "source": "synthetic",
-      "status": "ready",
-      "filename": "TR-003-rohs-demo.md",
-      "pageCount": 1,
-      "pages": [
-        {
-          "page": 1,
-          "text": "材料组合：original-material；NL-L 外壳与 PCB；RoHS 证据已归档。"
-        }
-      ],
-      "coverage": {
-        "series": "NL-L",
-        "powerMinW": null,
-        "powerMaxW": null,
-        "ipLevels": [],
-        "drivers": [],
-        "materials": [
-          "original-material"
-        ],
-        "markets": [
-          "EU",
-          "DE"
-        ],
-        "tests": [
-          "rohs"
-        ],
-        "confidence": 0.97
-      },
-      "testScopes": {
+          "page": 2,
+          "quote": "报告版本：`V1.1`\n报告日期：`2026-04-12`\n覆盖功率区间：`18–30W`\n覆盖防护等级：`IP20`\n覆盖驱动电源：`DRV-A`\n覆盖测试项目：温升/耐热、电气安全、EMC、RoHS 文档审查。"
+        },
+        "electrical-strength": {
+          "coverage": {
+            "series": "NL-L24",
+            "powerMinW": 18,
+            "powerMaxW": 30,
+            "ipLevels": [],
+            "drivers": [
+              "DRV-A"
+            ],
+            "materials": [],
+            "markets": [
+              "EU",
+              "DE"
+            ],
+            "tests": [
+              "electrical-strength"
+            ],
+            "confidence": 0.9
+          },
+          "page": 2,
+          "quote": "报告版本：`V1.1`\n报告日期：`2026-04-12`\n覆盖功率区间：`18–30W`\n覆盖防护等级：`IP20`\n覆盖驱动电源：`DRV-A`\n覆盖测试项目：温升/耐热、电气安全、EMC、RoHS 文档审查。"
+        },
         "rohs": {
           "coverage": {
-            "series": "NL-L",
+            "series": "NL-L24",
             "powerMinW": null,
             "powerMaxW": null,
             "ipLevels": [],
@@ -482,38 +649,41 @@
             "tests": [
               "rohs"
             ],
-            "confidence": 0.97
+            "confidence": 0.9
           },
-          "page": 1,
-          "quote": "材料组合：original-material；NL-L 外壳与 PCB；RoHS 证据已归档。"
+          "page": 2,
+          "quote": "报告版本：`V1.1`\n报告日期：`2026-04-12`\n覆盖功率区间：`18–30W`\n覆盖防护等级：`IP20`\n覆盖驱动电源：`DRV-A`\n覆盖测试项目：温升/耐热、电气安全、EMC、RoHS 文档审查。"
         }
       },
-      "verified": true,
-      "notes": "材料变更需要重新核对供应商声明与 RoHS/REACH 证据。",
-      "createdAt": "2026-10-31T00:00:00.000Z"
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/synthetic-data/packs/baseline/04-test-report.md",
+        "documentId": "DOC-BASELINE-TEST-001",
+        "sha256": "9c14ec4030d5eb3256f21edbb5c7870bb3316c55ee9f19ba85185d6f8b0e545b"
+      }
     },
     {
-      "id": "SPEC-001",
-      "title": "产品规格书 NL-L（示意）",
+      "id": "DOC-BASELINE-SPEC-001",
+      "title": "产品规格书 NL-L24（合成演示）",
       "kind": "spec",
       "source": "synthetic",
       "status": "ready",
-      "filename": "NL-L-spec-demo.md",
+      "filename": "02-product-spec.md",
+      "filenameEncoding": "utf-8",
       "pageCount": 2,
       "pages": [
         {
           "page": 1,
-          "text": "规格基线：24W、IP20、DRV-A。"
+          "text": "型号 / SKU：`NL-L24`\n额定功率：`24W`\n输入：`220-240 V AC, 50/60 Hz`\n防护等级：`IP20`\n驱动电源：`DRV-A`\n版本：`V1.4`。"
         },
         {
           "page": 2,
-          "text": "产品系列：NL-L；目标市场：德国。"
+          "text": "用途：室内固定安装。\n变更状态：当前没有客户参数变更；本文件为基准配置。"
         }
       ],
       "coverage": {
-        "series": "NL-L",
-        "powerMinW": 18,
-        "powerMaxW": 30,
+        "series": "NL-L24",
+        "powerMinW": 24,
+        "powerMaxW": 24,
         "ipLevels": [
           "IP20"
         ],
@@ -530,28 +700,38 @@
         "tests": [
           "spec"
         ],
-        "confidence": 0.94
+        "confidence": 0.9
       },
       "verified": true,
-      "notes": "用于演示文档变更回写。",
-      "createdAt": "2026-10-31T00:00:00.000Z"
+      "notes": "合成演示数据；演示预设确认状态，不代表真实工程/品质确认或检测机构结论。",
+      "createdAt": "2026-10-31T00:00:00.000Z",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/synthetic-data/packs/baseline/02-product-spec.md",
+        "documentId": "DOC-BASELINE-SPEC-001",
+        "sha256": "1fec1469d13742b2e8b8722b5bc5ee251ae466a7945c887758dc39f38c42df9c"
+      }
     },
     {
-      "id": "DOC-001",
-      "title": "EU DoC（示意）",
+      "id": "DOC-BASELINE-DOC-001",
+      "title": "EU DoC NL-L24（合成演示）",
       "kind": "doc",
       "source": "synthetic",
       "status": "ready",
-      "filename": "NL-L-doc-demo.md",
-      "pageCount": 1,
+      "filename": "03-declaration-of-conformity.md",
+      "filenameEncoding": "utf-8",
+      "pageCount": 2,
       "pages": [
         {
           "page": 1,
-          "text": "DoC：NL-L、24W、IP20、DRV-A；示意声明。"
+          "text": "声明对象型号：`NL-L24`\n额定功率：`24W`\n输入：`220-240 V AC`\n防护等级：`IP20`\n驱动电源：`DRV-A`\n文件版本：`V1.3`\n签署日期：`2026-04-18`。"
+        },
+        {
+          "page": 2,
+          "text": "来源引用记录：`SRC-LVD-2014-35`、`SRC-EMC-2014-30`、`SRC-ROHS-2011-65`。\n提示：本声明为合成样例，不构成真实符合性声明。"
         }
       ],
       "coverage": {
-        "series": "NL-L",
+        "series": "NL-L24",
         "powerMinW": 24,
         "powerMaxW": 24,
         "ipLevels": [
@@ -573,85 +753,118 @@
         "confidence": 0.9
       },
       "verified": true,
-      "notes": "配置变化时需要重新生成或复核。",
-      "createdAt": "2026-10-31T00:00:00.000Z"
+      "notes": "合成演示数据；演示预设确认状态，不代表真实工程/品质确认或检测机构结论。",
+      "createdAt": "2026-10-31T00:00:00.000Z",
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/synthetic-data/packs/baseline/03-declaration-of-conformity.md",
+        "documentId": "DOC-BASELINE-DOC-001",
+        "sha256": "4b1069d9fafe2438b7cd83549b5264024f0bdf377fcf1d5f529f5db6be693ae9"
+      }
     },
     {
-      "id": "LABEL-001",
-      "title": "产品标签与包装（示意）",
+      "id": "DOC-BASELINE-LABEL-001",
+      "title": "标签与说明书 NL-L24（组合演示）",
       "kind": "label",
       "source": "synthetic",
       "status": "ready",
-      "filename": "NL-L-label-demo.txt",
-      "pageCount": 1,
-      "pages": [
-        {
-          "page": 1,
-          "text": "标签：功率 24W；IP20；型号 NL-L。"
-        }
-      ],
-      "coverage": {
-        "series": "NL-L",
-        "powerMinW": 24,
-        "powerMaxW": 24,
-        "ipLevels": [
-          "IP20"
-        ],
-        "drivers": [],
-        "materials": [],
-        "markets": [
-          "EU",
-          "DE"
-        ],
-        "tests": [
-          "label"
-        ],
-        "confidence": 0.9
-      },
-      "verified": true,
-      "notes": "标签必须与最终报价配置一致。",
-      "createdAt": "2026-10-31T00:00:00.000Z"
-    },
-    {
-      "id": "MANUAL-001",
-      "title": "德语安装说明书（示意）",
-      "kind": "manual",
-      "source": "synthetic",
-      "status": "ready",
-      "filename": "NL-L-manual-de-demo.md",
+      "filename": "05-label-and-instructions.md",
+      "filenameEncoding": "utf-8",
       "pageCount": 2,
       "pages": [
         {
           "page": 1,
-          "text": "德语安装说明书：NL-L、IP20。"
+          "text": "标签型号：`NL-L24`\n额定值：`24W, 220-240 V AC, IP20`\n驱动电源：`DRV-A`\n标签版本：`V1.2`。"
         },
         {
           "page": 2,
-          "text": "说明书中的电气参数与安装环境应随配置复核。"
+          "text": "说明书版本：`V1.1`\n说明书语言：English / Deutsch。\n提示：目标国家语言与警示字段仍需品质/合规人工确认。"
         }
       ],
       "coverage": {
-        "series": "NL-L",
-        "powerMinW": 18,
-        "powerMaxW": 30,
+        "series": "NL-L24",
+        "powerMinW": 24,
+        "powerMaxW": 24,
         "ipLevels": [
           "IP20"
         ],
         "drivers": [
           "DRV-A"
         ],
-        "materials": [],
+        "materials": [
+          "original-material"
+        ],
         "markets": [
+          "EU",
           "DE"
         ],
         "tests": [
+          "label",
           "manual"
         ],
         "confidence": 0.9
       },
       "verified": true,
-      "notes": "手册更新为内部文档工作，不等同于检测结论。",
-      "createdAt": "2026-10-31T00:00:00.000Z"
+      "notes": "合成演示数据；演示预设确认状态，不代表真实工程/品质确认或检测机构结论。",
+      "createdAt": "2026-10-31T00:00:00.000Z",
+      "testScopes": {
+        "label": {
+          "coverage": {
+            "series": "NL-L24",
+            "powerMinW": 24,
+            "powerMaxW": 24,
+            "ipLevels": [
+              "IP20"
+            ],
+            "drivers": [
+              "DRV-A"
+            ],
+            "materials": [
+              "original-material"
+            ],
+            "markets": [
+              "EU",
+              "DE"
+            ],
+            "tests": [
+              "label"
+            ],
+            "confidence": 0.9
+          },
+          "page": 1,
+          "quote": "标签型号：`NL-L24`\n额定值：`24W, 220-240 V AC, IP20`\n驱动电源：`DRV-A`\n标签版本：`V1.2`。"
+        },
+        "manual": {
+          "coverage": {
+            "series": "NL-L24",
+            "powerMinW": 24,
+            "powerMaxW": 24,
+            "ipLevels": [
+              "IP20"
+            ],
+            "drivers": [
+              "DRV-A"
+            ],
+            "materials": [
+              "original-material"
+            ],
+            "markets": [
+              "EU",
+              "DE"
+            ],
+            "tests": [
+              "manual"
+            ],
+            "confidence": 0.9
+          },
+          "page": 2,
+          "quote": "说明书版本：`V1.1`\n说明书语言：English / Deutsch。\n提示：目标国家语言与警示字段仍需品质/合规人工确认。"
+        }
+      },
+      "knowledgeSource": {
+        "path": "knowledge-base(2)/synthetic-data/packs/baseline/05-label-and-instructions.md",
+        "documentId": "DOC-BASELINE-LABEL-001",
+        "sha256": "522d0be6a55830408f450c17a6d492b339fcabdd8bacc88e0d43c9e667059a60"
+      }
     }
   ]
 }

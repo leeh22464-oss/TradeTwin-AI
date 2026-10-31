@@ -13,14 +13,18 @@ async function call(path, method = 'GET', body) {
 assert.equal((await call('/api/health')).ok, true);
 const item = await call('/api/cases', 'POST', {
   name: '自动验收 · 德国灯具变更', buyer: '合成演示客户', quantity: 500, unitPriceEur: 18.5,
-  inquiry: 'Please quote 36W / IP44 for the NL-L LED luminaire.',
-  config: { model: 'NL-L', powerW: 36, ip: 'IP44', driver: 'DRV-A', material: 'original-material', market: 'DE' },
+  inquiry: 'Bitte 36 Watt statt 24 Watt, IP44; der Treiber bleibt DRV-A.',
 });
+assert.equal(item.requestedConfig.powerW, 36);
 const path = `/api/cases/${item.id}`;
 const first = await call(`${path}/analyze`, 'POST', {});
 assert.equal(first.analysis.totalCostEur, 2100);
-assert.equal(first.analysis.leadTimeDays, 8);
-assert.equal(first.analysis.requiredTests.length, 2);
+assert.equal(first.analysis.calculation.estimatedDays, 8);
+assert.equal(first.analysis.leadTimeDays, null);
+assert.equal(first.analysis.canQuote, false);
+assert.equal(first.analysis.findings.find((f) => f.itemId === 'emc').status, 'review');
+assert.ok(first.analysis.requiredTests.includes('temperature') && first.analysis.requiredTests.includes('ip'));
+assert.ok(first.analysis.knowledgeContext?.fingerprint);
 const repeated = await call(`${path}/analyze`, 'POST', {});
 assert.equal(repeated.analysis.id, first.analysis.id);
 let result = await call(`${path}/quote`, 'POST', { channel: 'email' });
@@ -29,7 +33,8 @@ assert.ok(result.quote.internal.quality.some((text) => /[\u4e00-\u9fff]/.test(te
 result = await call(`${path}/chat`, 'POST', { message: '客户选择方案 A，改成 30W / IP44，请重新计算。', channel: 'rfq' });
 assert.equal(result.requestedConfig.powerW, 30);
 assert.equal(result.analysis.totalCostEur, 900);
-assert.equal(result.analysis.leadTimeDays, 7);
+assert.equal(result.analysis.calculation.estimatedDays, 7);
+assert.equal(result.analysis.leadTimeDays, null);
 assert.deepEqual(result.analysis.requiredTests, ['ip']);
 result = await call(`${path}/chat`, 'POST', { message: '暂不承诺具体交期，等实验室排期确认。' });
 assert.match(result.commitment, /不承诺/);
@@ -49,9 +54,9 @@ await mkdir('test-results', { recursive: true });
 await writeFile('test-results/smoke-case.md', markdown);
 await writeFile('test-results/smoke.json', JSON.stringify({
   checkedAt: new Date().toISOString(), caseId: item.id, modelMode: result.quote.modelMode,
-  first: { cost: first.analysis.totalCostEur, days: first.analysis.leadTimeDays },
-  second: { cost: result.analysis.totalCostEur, days: result.analysis.leadTimeDays },
+  first: { knownCost: first.analysis.totalCostEur, planningDays: first.analysis.calculation.estimatedDays, committedDays: first.analysis.leadTimeDays },
+  second: { knownCost: result.analysis.totalCostEur, planningDays: result.analysis.calculation.estimatedDays, committedDays: result.analysis.leadTimeDays },
   messages: result.messages.length, auditEvents: events.length,
 }, null, 2));
-console.log(`PASS: €2,100 / 8 days → €900 / 7 days → delivery hold; ${result.messages.length} messages; ${events.length} audit events.`);
+console.log(`PASS: known €2,100 / estimated 8 days → known €900 / estimated 7 days; EMC pending, no delivery commitment; ${result.messages.length} messages; ${events.length} audit events.`);
 console.log(`Case: ${item.id}; model mode: ${result.quote.modelMode}; export: test-results/smoke-case.md`);

@@ -21,30 +21,33 @@ describe('deterministic coverage and minimum retest engine', () => {
     const result = analyzeChange(config({ powerW: 36, ip: 'IP44' }));
     expect(result.requiredTests).toEqual(['temperature', 'ip']);
     expect(result.totalCostEur).toBe(2100);
-    expect(result.leadTimeDays).toBe(8);
-    expect(result.calculation.formula).toContain('max(6,5) + 2 = 8');
+    expect(result.leadTimeDays).toBeNull();
+    expect(result.calculation.estimatedDays).toBe(8);
+    expect(result.calculation.formula).toContain('max(6,5) + 2');
     expect(result.findings.find((item) => item.itemId === 'temperature')?.status).toBe('retest');
     expect(result.findings.find((item) => item.itemId === 'ip')?.status).toBe('retest');
     expect(result.findings.filter((item) => item.status === 'update')).toHaveLength(3);
   });
 
-  it('keeps EMC reusable for 36W only because its independent report covers the changed power and driver', () => {
+  it('routes EMC to manual review when power/IP changes but the driver stays the same', () => {
     const result = analyzeChange(config({ powerW: 36, ip: 'IP44' }));
-    expect(result.reusedTests).toContain('emc');
+    expect(result.reusedTests).not.toContain('emc');
+    expect(result.findings.find((item) => item.itemId === 'emc')?.status).toBe('review');
     expect(result.findings.find((item) => item.itemId === 'emc')?.evidence[0]).toMatchObject({ reportId: 'TR-002', page: 1 });
   });
 
   it('calculates option A (30W/IP44) as IP retest plus document update', () => {
     const result = analyzeChange(config({ powerW: 36, ip: 'IP44' }));
     const optionA = result.alternatives.find((item) => item.id === 'A');
-    expect(optionA).toMatchObject({ totalCostEur: 900, leadTimeDays: 7, requiredTests: ['ip'] });
+    expect(optionA).toMatchObject({ totalCostEur: 900, leadTimeDays: null, estimatedLeadTimeDays: 7, requiredTests: ['ip'] });
   });
 
   it('does not turn an in-range 28W change into a retest', () => {
     const result = analyzeChange(config({ powerW: 28 }));
     expect(result.requiredTests).toEqual([]);
     expect(result.totalCostEur).toBe(0);
-    expect(result.leadTimeDays).toBe(2);
+    expect(result.leadTimeDays).toBeNull();
+    expect(result.calculation.estimatedDays).toBe(2);
     expect(result.documentUpdates).toEqual(['doc', 'label', 'manual']);
     expect(result.findings.filter((item) => item.category === 'documents').map((item) => item.itemId)).toEqual(['doc', 'label', 'manual']);
   });
@@ -53,14 +56,17 @@ describe('deterministic coverage and minimum retest engine', () => {
     const result = analyzeChange(config({ powerW: 30, ip: 'IP44' }));
     expect(result.requiredTests).toEqual(['ip']);
     expect(result.totalCostEur).toBe(900);
-    expect(result.leadTimeDays).toBe(7);
+    expect(result.leadTimeDays).toBeNull();
+    expect(result.calculation.estimatedDays).toBe(7);
   });
 
   it('retests every declared scope plus EMC and electrical strength when the driver changes', () => {
     const result = analyzeChange(config({ driver: 'DRV-B' }));
     expect(result.requiredTests).toEqual(['temperature', 'ip', 'emc', 'electrical-strength']);
     expect(result.totalCostEur).toBe(3600);
-    expect(result.leadTimeDays).toBe(9);
+    expect(result.leadTimeDays).toBe(12);
+    expect(result.calculation.preparationDays).toBe(3);
+    expect(result.calculation.formula).toContain('3（驱动打样） + max(6,5,7,3) + 2（文件更新） = 12');
   });
 
   it('does not reuse EMC from the same driver when another independent condition is missing', () => {
@@ -179,7 +185,7 @@ describe('deterministic coverage and minimum retest engine', () => {
   });
 
   it('selects alternative B from a prior analysis', () => {
-    const previous = analyzeChange(config({ powerW: 30, ip: 'IP44' }));
+    const previous = analyzeChange(config({ powerW: 36, ip: 'IP44' }));
     const parsed = parseLocalChange('客户选择 option B', previous.config, previous);
     expect(parsed.config.powerW).toBe(36);
     expect(parsed.config.ip).toBe('IP44');
@@ -353,5 +359,118 @@ describe('deterministic coverage and minimum retest engine', () => {
     expect(doc?.status).toBe('review');
     expect(doc?.reason).toContain('创建/补齐');
     expect(result.canQuote).toBe(false);
+  });
+
+  it('builds alternatives from the requested configuration and preserves IP65', () => {
+    const result = analyzeChange(config({ powerW: 36, ip: 'IP65' }));
+    expect(result.alternatives.map((item) => item.id)).toEqual(['A', 'B']);
+    expect(result.alternatives[0].config).toMatchObject({ powerW: 30, ip: 'IP65' });
+    expect(result.alternatives[1].config).toMatchObject({ powerW: 36, ip: 'IP65' });
+  });
+
+  it('does not invent alternatives when the requested power is in the report range', () => {
+    expect(analyzeChange(config({ powerW: 28 })).alternatives).toEqual([]);
+    expect(analyzeChange(config({ powerW: 24 })).alternatives).toEqual([]);
+  });
+
+  it('uses a selected report id and declared range in an out-of-range reason', () => {
+    const source = seedReports.find((report) => report.id === 'TR-001')!;
+    const replacement: EvidenceReport = {
+      ...source,
+      id: 'TR-CUSTOM-36',
+      pages: [{ page: 8, text: '温升功率范围：12W–24W。' }],
+      pageCount: 1,
+      coverage: { ...source.coverage, powerMinW: 12, powerMaxW: 24 },
+      testScopes: { temperature: { ...source.testScopes!.temperature, coverage: { ...source.testScopes!.temperature.coverage, powerMinW: 12, powerMaxW: 24 }, page: 8, quote: '温升功率范围：12W–24W。' } },
+    };
+    const result = analyzeChange(config({ powerW: 36 }), [...seedReports.filter((report) => report.id !== 'TR-001'), replacement]);
+    const finding = result.findings.find((item) => item.itemId === 'temperature')!;
+    expect(finding.reason).toContain('TR-CUSTOM-36');
+    expect(finding.reason).toContain('12W–24W');
+    expect(finding.reason).not.toContain('TR-001');
+  });
+
+  it('changes the fingerprint and rule ids when runtime policy/context changes', () => {
+    const context = { profileId: 'test-profile', version: 'rules-test.v1', fingerprint: 'a'.repeat(64), sources: [] };
+    const policy = { requireEmcReview: true, driverPreparationDays: 3, ruleIds: { coverage: ['RULE-COVERAGE'] }, modelAliases: {} };
+    const first = analyzeChange(config({ powerW: 36 }), seedReports, { knowledgeContext: context, policy });
+    const second = analyzeChange(config({ powerW: 36 }), seedReports, { knowledgeContext: { ...context, fingerprint: 'b'.repeat(64) }, policy });
+    expect(first.id).not.toBe(second.id);
+    expect(first.ruleVersion).toBe('rules-test.v1');
+    expect(first.findings.find((item) => item.itemId === 'temperature')?.ruleIds).toEqual(['RULE-COVERAGE']);
+  });
+
+  it('does not offer a lower-power alternative when a changed driver still forces the temperature retest', () => {
+    const result = analyzeChange(config({ powerW: 36, driver: 'DRV-B' }));
+    expect(result.findings.find((item) => item.itemId === 'temperature')?.status).toBe('retest');
+    expect(result.alternatives).toEqual([]);
+  });
+
+  it('does not invent alternatives when the baseline itself is already out of range', () => {
+    const requested = config({ powerW: 36 });
+    const result = analyzeChange(requested, seedReports, { baseConfig: requested });
+    expect(result.findings.find((item) => item.itemId === 'temperature')?.status).toBe('retest');
+    expect(result.alternatives).toEqual([]);
+  });
+
+  it('does not schedule driver preparation for an unknown driver', () => {
+    const result = analyzeChange(config({ driver: null }));
+    expect(result.findings.find((item) => item.itemId === 'driver-preparation')).toBeUndefined();
+    expect(result.calculation.preparationDays).toBe(0);
+    expect(result.canQuote).toBe(false);
+  });
+
+  it('blocks a known driver change when driver-preparation cost data is missing or invalid', () => {
+    const missing = analyzeChange(config({ driver: 'DRV-B' }), seedReports, { costs: seedCosts.filter((item) => item.id !== 'driver-preparation') });
+    expect(missing.findings.find((item) => item.itemId === 'driver-preparation')?.status).toBe('review');
+    expect(missing.canQuote).toBe(false);
+    expect(missing.calculation.preparationDays).toBeUndefined();
+    expect(missing.calculation.formula).toContain('驱动打样待核验');
+
+    const invalid = analyzeChange(config({ driver: 'DRV-B' }), seedReports, {
+      costs: seedCosts.map((item) => item.id === 'driver-preparation' ? { ...item, days: 0 } : item),
+    });
+    expect(invalid.findings.find((item) => item.itemId === 'driver-preparation')?.status).toBe('review');
+    expect(invalid.canQuote).toBe(false);
+  });
+
+  it('prefers the applicable canonical series over an unrelated uploaded report', () => {
+    const source = seedReports.find((report) => report.id === 'TR-001')!;
+    const canonical: EvidenceReport = {
+      ...source,
+      id: 'TR-DEMO-NL-L24-01',
+      coverage: { ...source.coverage, series: 'NL-L24' },
+      testScopes: Object.fromEntries(Object.entries(source.testScopes ?? {}).map(([test, scope]) => [test, { ...scope, coverage: { ...scope.coverage, series: 'NL-L24' } }])) as EvidenceReport['testScopes'],
+    };
+    const unrelated: EvidenceReport = {
+      ...canonical,
+      id: 'UPLOAD-OTHER-99',
+      title: '上传报告（其他型号）',
+      coverage: { ...canonical.coverage, series: 'OTHER', powerMaxW: 99 },
+      testScopes: Object.fromEntries(Object.entries(canonical.testScopes ?? {}).map(([test, scope]) => [test, { ...scope, coverage: { ...scope.coverage, series: 'OTHER', powerMaxW: 99 } }])) as EvidenceReport['testScopes'],
+    };
+    const result = analyzeChange({ ...BASE_CONFIG, model: 'NL-L24', powerW: 36 }, [canonical, unrelated], {
+      baseConfig: { ...BASE_CONFIG, model: 'NL-L24' },
+    });
+    const temperature = result.findings.find((item) => item.itemId === 'temperature')!;
+    expect(temperature.evidence[0]?.reportId).toBe('TR-DEMO-NL-L24-01');
+    expect(temperature.reason).toContain('TR-DEMO-NL-L24-01');
+    expect(result.alternatives[0]?.config.powerW).toBe(30);
+  });
+
+  it('uses the widest nearby same-model boundary for the power alternative', () => {
+    const source = seedReports.find((report) => report.id === 'TR-001')!;
+    const max30 = { ...source, id: 'TR-SAME-30' };
+    const max40: EvidenceReport = {
+      ...source,
+      id: 'TR-SAME-40',
+      pages: [{ page: 4, text: '温升功率范围：18W–40W。' }],
+      pageCount: 1,
+      coverage: { ...source.coverage, powerMaxW: 40 },
+      testScopes: { temperature: { ...source.testScopes!.temperature, coverage: { ...source.testScopes!.temperature.coverage, powerMaxW: 40 }, page: 4, quote: '温升功率范围：18W–40W。' } },
+    };
+    const result = analyzeChange({ ...BASE_CONFIG, powerW: 45 }, [max30, max40]);
+    expect(result.findings.find((item) => item.itemId === 'temperature')?.evidence[0]?.reportId).toBe('TR-SAME-40');
+    expect(result.alternatives[0]?.config.powerW).toBe(40);
   });
 });

@@ -25,6 +25,7 @@ import { ConfigValidationError, extractChange, generateQuote, getModelStatus, no
 import { searchKnowledge, syncKnowledgePackage, type KnowledgePackageBundle } from './knowledge.js';
 import { researchKnowledge, ResearchInputError } from './research.js';
 import { getOfficialConfig, type FetchLike } from './openai.js';
+import { loadRuntimeKnowledge, type RuntimeKnowledgeProfile } from './runtimeKnowledge.js';
 import {
   importMarkdownVault,
   MAX_UPLOAD_BYTES,
@@ -38,6 +39,9 @@ export interface AppOptions extends DatabaseOptions {
   knowledgePackagePath?: string;
   researchFetch?: FetchLike;
   researchTimeoutMs?: number;
+  /** Explicit legacy fixtures for compatibility tests; production uses the knowledge profile. */
+  runtimeKnowledge?: RuntimeKnowledgeProfile | false;
+  runtimePolicyPath?: string;
 }
 
 export class HttpError extends Error {
@@ -108,14 +112,37 @@ function routeParam(value: string | string[]): string {
   return Array.isArray(value) ? value[0] ?? '' : value;
 }
 
-function seedBundle() {
+function seedBundle(runtime: RuntimeKnowledgeProfile | false) {
+  const demo = createSeedCase();
+  if (runtime && runtime.available) {
+    demo.name = `德国客户 · ${runtime.baseConfig.model} 灯具变更`;
+    demo.baseConfig = cloneConfig(runtime.baseConfig);
+    demo.requestedConfig = { ...runtime.baseConfig, powerW: 36, ip: 'IP44' };
+    demo.inquiry = `Buyer requests 36W and IP44 for ${runtime.baseConfig.model}.`;
+  }
   return {
-    reports: seedReports,
-    costs: seedCosts,
-    rules: seedRules,
+    reports: runtime ? runtime.reports : seedReports,
+    costs: runtime ? runtime.costs : seedCosts,
+    rules: runtime ? runtime.rules : seedRules,
     knowledge: seedKnowledge,
-    cases: [createSeedCase()],
+    cases: [demo],
   };
+}
+
+function activeReports(db: AppDatabase, runtime: RuntimeKnowledgeProfile | false, conflicts: string[] = []): EvidenceReport[] {
+  if (!runtime) return db.listReports();
+  if (!runtime.available) return db.listReports().filter((report) => report.source === 'uploaded').map((report) => ({
+    ...report, verified: false, status: 'needs_review' as const, notes: `${report.notes} 运行知识不可用，当前仅供查看，不能自动用于报价。`,
+  }));
+  const currentIds = new Set(runtime.reports.map((report) => report.id));
+  return db.listReports().filter((report) => {
+    if (report.source === 'uploaded') return true;
+    if (report.knowledgeSource) return currentIds.has(report.id);
+    const legacy = seedReports.find((item) => item.id === report.id);
+    return !legacy || hash(legacy) !== hash(report);
+  }).map((report) => conflicts.includes(report.id)
+    ? { ...report, verified: false, status: 'needs_review' as const, notes: `${report.notes} 知识源已更新，与人工修改冲突，需重新核对原文。` }
+    : report);
 }
 
 function audit(caseId: string, type: string, detail: unknown, fingerprint?: string): AuditEvent {
@@ -149,6 +176,7 @@ interface CaseExtractionMeta {
   summary: string;
   retrievalIds: string[];
   warning?: string;
+  requiresReview?: boolean;
 }
 
 interface CreatedCase {
@@ -164,8 +192,8 @@ function boundedText(value: unknown, field: string, max: number, fallback = ''):
   return normalized || fallback;
 }
 
-async function createCase(db: AppDatabase, body: Record<string, unknown>, knowledgeBundle?: KnowledgePackageBundle): Promise<CreatedCase> {
-  const baseConfig = cloneConfig(BASE_CONFIG);
+async function createCase(db: AppDatabase, body: Record<string, unknown>, knowledgeBundle?: KnowledgePackageBundle, runtime?: RuntimeKnowledgeProfile | false): Promise<CreatedCase> {
+  const baseConfig = cloneConfig(runtime ? runtime.baseConfig : BASE_CONFIG);
   const hasExplicitConfig = body.config !== undefined;
   if (hasExplicitConfig && (!body.config || typeof body.config !== 'object' || Array.isArray(body.config))) {
     throw new HttpError(400, 'config 必须是对象');
@@ -188,6 +216,7 @@ async function createCase(db: AppDatabase, body: Record<string, unknown>, knowle
       summary: extracted.summary,
       retrievalIds: knowledge.map((entry) => entry.id),
       ...(extracted.warning ? { warning: extracted.warning } : {}),
+      ...(extracted.requiresReview ? { requiresReview: true } : {}),
     };
   } else {
     requestedConfig = normalizeConfig(body.config as Partial<ProductConfig> | undefined, baseConfig);
@@ -217,6 +246,7 @@ async function createCase(db: AppDatabase, body: Record<string, unknown>, knowle
     analysis: null,
     quote: null,
     messages: [],
+    ...(extraction.requiresReview ? { extractionReview: extraction.summary } : {}),
   };
   if (inquiry) appendMessage(item, 'user', inquiry, extraction.mode);
   return { item, extraction };
@@ -227,6 +257,7 @@ function updateCaseFromBody(item: CaseRecord, body: Record<string, unknown>): { 
   if (body.config !== undefined) {
     if (!body.config || typeof body.config !== 'object' || Array.isArray(body.config)) throw new HttpError(400, 'config 必须是对象');
     item.requestedConfig = normalizeConfig(body.config as Partial<ProductConfig>, item.requestedConfig);
+    if (Object.keys(body.config).length > 0) delete item.extractionReview;
     changed = true;
   }
   const quantity = numberValue(body.quantity, 'quantity', { min: 1, integer: true });
@@ -250,13 +281,34 @@ function ensureCase(db: AppDatabase, id: string): CaseRecord {
   return item;
 }
 
-async function runAnalysis(db: AppDatabase, item: CaseRecord): Promise<AnalysisResult> {
-  const result = analyzeChange(item.requestedConfig, db.listReports(), {
+async function runAnalysis(db: AppDatabase, item: CaseRecord, runtime: RuntimeKnowledgeProfile | false, conflicts: string[] = []): Promise<AnalysisResult> {
+  const result = analyzeChange(item.requestedConfig, activeReports(db, runtime, conflicts), {
     baseConfig: item.baseConfig,
     commitment: item.commitment,
-    costs: db.listCosts(),
+    costs: runtime ? runtime.costs : db.listCosts(),
+    ...(runtime ? { policy: runtime.policy, knowledgeContext: runtime.context } : {}),
   }) as CaseRecord['analysis'];
   if (!result) throw new HttpError(500, '规则引擎未返回分析结果', 'ENGINE_EMPTY');
+  if (runtime && !runtime.available) {
+    result.findings.push({ id: 'finding-runtime-unavailable', itemId: 'runtime-unavailable', title: '运行知识不可用', category: 'contract', status: 'review', reason: runtime.warnings.join('；'), ruleIds: ['APP-RUNTIME-001'], evidence: [], feeEur: null, days: null });
+    result.reviewCount += 1;
+    result.canQuote = false;
+    result.leadTimeDays = null;
+    result.warnings.push('运行知识未通过校验，不能将历史演示证据或已知小计作为完整报价。');
+    result.id = `analysis-${hash({ core: result.id, unavailable: runtime.context.fingerprint })}`;
+  }
+  if (item.extractionReview) {
+    result.findings.push({
+      id: 'finding-inquiry-ambiguity', itemId: 'inquiry-ambiguity', title: '询盘参数待确认', category: 'contract', status: 'review',
+      reason: `${item.extractionReview} 请核对并保存完整配置后再生成确定报价。`,
+      ruleIds: ['RULE-PARAMETER-TEST-MAP-001'], evidence: [], feeEur: null, days: null,
+    });
+    result.reviewCount += 1;
+    result.canQuote = false;
+    result.leadTimeDays = null;
+    result.warnings.push('询盘参数尚未确认，已知费用不是完整报价，不能自动承诺交期。');
+    result.id = `analysis-${hash({ core: result.id, extractionReview: item.extractionReview })}`;
+  }
   return { ...result, id: result.id || `analysis-${randomUUID()}`, config: cloneConfig(item.requestedConfig) };
 }
 
@@ -328,7 +380,10 @@ const asyncRoute = (handler: RequestHandler): RequestHandler => (req, res, next)
 
 export function createApp(options: AppOptions = {}): express.Express {
   const db = new AppDatabase(options);
-  if (options.seed !== false) db.seedIfEmpty(seedBundle());
+  let runtime: RuntimeKnowledgeProfile | false = options.runtimeKnowledge ?? loadRuntimeKnowledge({ packagePath: options.knowledgePackagePath, policyPath: options.runtimePolicyPath });
+  let runtimeConflicts: string[] = [];
+  if (options.seed !== false) db.seedIfEmpty(seedBundle(runtime));
+  if (runtime) runtimeConflicts = db.syncRuntimeReports(runtime.reports);
   // The package path is configured at process startup (or by the test
   // harness); request bodies never get to choose a filesystem path.
   let knowledgeBundle = syncKnowledgePackage(db, options.knowledgePackagePath);
@@ -337,8 +392,35 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.locals.db = db;
   app.locals.dataDir = db.dataDir;
   app.locals.knowledgeBundle = knowledgeBundle;
+  app.locals.runtimeKnowledge = runtime;
+  const refreshRuntime = (): void => {
+    if (options.runtimeKnowledge !== undefined) return;
+    const next = loadRuntimeKnowledge({ packagePath: options.knowledgePackagePath, policyPath: options.runtimePolicyPath });
+    if (runtime && runtime.context.fingerprint === next.context.fingerprint && runtime.available === next.available) return;
+    runtime = next;
+    runtimeConflicts = db.syncRuntimeReports(next.reports);
+    app.locals.runtimeKnowledge = next;
+    invalidateRuntimeResults();
+  };
+  const invalidateRuntimeResults = (): void => {
+    if (!runtime) return;
+    for (const item of db.listCases()) {
+      if (!item.analysis && !item.quote) continue;
+      if (runtime.available && item.analysis?.knowledgeContext?.fingerprint === runtime.context.fingerprint) continue;
+      const oldVersion = item.analysis?.ruleVersion;
+      item.analysis = null;
+      item.quote = null;
+      item.updatedAt = createdAt();
+      db.saveCase(item);
+      db.addAudit(audit(item.id, 'knowledge.changed', { oldVersion, version: runtime.context.version, fingerprint: runtime.context.fingerprint, reason: '运行知识或规则更新，清除旧派生结果，保留配置与会话。' }));
+    }
+  };
+  invalidateRuntimeResults();
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+  app.use('/api', (_req, _res, next) => {
+    try { refreshRuntime(); next(); } catch (error) { next(error); }
+  });
 
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -350,12 +432,29 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'ok', time: createdAt(), ruleVersion: RULE_VERSION }));
 
-  app.get('/api/bootstrap', (_req, res) => res.json(db.bootstrap(getModelStatus(), RULE_VERSION)));
+  app.get('/api/bootstrap', (_req, res) => {
+    const bootstrap = db.bootstrap(getModelStatus(), runtime ? runtime.context.version : RULE_VERSION);
+    if (runtime) {
+      bootstrap.reports = activeReports(db, runtime, runtimeConflicts);
+      bootstrap.costs = runtime.costs;
+      bootstrap.rules = runtime.rules;
+      if (!runtime.available) bootstrap.rules = [...bootstrap.rules, { id: 'APP-RUNTIME-001', title: '运行知识缺失阻断', description: '应用安全规则：运行知识未通过校验时不得自动报价。', category: 'safety', version: runtime.context.version }];
+      bootstrap.runtimeKnowledge = { ...runtime.context, available: runtime.available, warnings: [...runtime.warnings, ...runtimeConflicts.map((id) => `${id} 的知识源已更新，人工修改保留并等待复核。`)] };
+    }
+    res.json(bootstrap);
+  });
+
+  app.get('/api/runtime/sources/:index', asyncRoute(async (req, res) => {
+    const index = routeParam(req.params.index);
+    const source = /^\d+$/.test(index) && runtime ? runtime.context.sources[Number(index)] : undefined;
+    if (!source) throw new HttpError(404, '运行知识来源不存在', 'RUNTIME_SOURCE_NOT_FOUND');
+    res.type('text/plain').send(await readFile(resolve(source.path), 'utf8'));
+  }));
 
   app.get('/api/cases/:id', (req, res) => res.json(ensureCase(db, routeParam(req.params.id))));
 
   app.post('/api/cases', asyncRoute(async (req, res) => {
-    const created = await createCase(db, asRecord(req.body), knowledgeBundle);
+    const created = await createCase(db, asRecord(req.body), knowledgeBundle, runtime);
     const item = created.item;
     db.saveCase(item);
     db.addAudit(audit(item.id, 'case.created', {
@@ -381,12 +480,13 @@ export function createApp(options: AppOptions = {}): express.Express {
     const body = asRecord(req.body);
     if (body.config !== undefined && (!body.config || typeof body.config !== 'object' || Array.isArray(body.config))) throw new HttpError(400, 'config 必须是对象');
     const config = body.config === undefined ? item.requestedConfig : normalizeConfig(body.config as Partial<ProductConfig>, item.requestedConfig);
+    if (body.config && Object.keys(body.config).length > 0) delete item.extractionReview;
     const commitment = body.commitment === undefined ? item.commitment : text(body.commitment);
     const configChanged = hash(item.requestedConfig) !== hash(config);
     const commitmentChanged = item.commitment !== commitment;
     item.requestedConfig = config;
     item.commitment = commitment;
-    const analysis = await runAnalysis(db, item);
+    const analysis = await runAnalysis(db, item, runtime, runtimeConflicts);
     const idempotencyKey = text(body.idempotencyKey) || null;
     // The deterministic analysis ID includes the complete report state
     // (coverage, verification, status, pages and test scopes). Cache only the
@@ -424,12 +524,20 @@ export function createApp(options: AppOptions = {}): express.Express {
     const knowledge = retrieveKnowledge(db, `${message} ${item.inquiry} ${item.requestedConfig.market ?? ''}`, 6, knowledgeBundle);
     const extracted = await extractChange(message, item.requestedConfig, item.analysis, knowledge);
     item.requestedConfig = normalizeConfig(extracted.config, item.requestedConfig);
+    if (extracted.requiresReview) item.extractionReview = extracted.summary;
     if (extracted.withholdDelivery) item.commitment = '暂不承诺具体交期';
     item.channel = channel;
     item.round += 1;
     appendMessage(item, 'user', message);
-    item.analysis = await runAnalysis(db, item);
+    item.analysis = await runAnalysis(db, item, runtime, runtimeConflicts);
     item.updatedAt = createdAt();
+    if (item.extractionReview || (runtime && !runtime.available)) {
+      item.quote = null;
+      appendMessage(item, 'assistant', `${extracted.summary}\n\n${item.extractionReview ? '询盘参数存在歧义，请核对并保存完整配置后再生成报价。' : '运行知识不可用，请先恢复知识源；当前不生成报价。'}`, extracted.mode);
+      db.saveCase(item);
+      db.addAudit(audit(item.id, 'chat.completed', { summary: extracted.summary, mode: extracted.mode, requiresReview: true, quoteGenerated: false }));
+      return res.json(item);
+    }
     const quote = await generateQuote(item, channel, knowledge);
     item.quote = quote;
     const warning = extracted.warning ? `\n\n${extracted.warning}` : '';
@@ -445,8 +553,12 @@ export function createApp(options: AppOptions = {}): express.Express {
     // Always recompute against the current evidence set. Evidence uploads and
     // edits invalidate persisted derived state, while this endpoint also
     // protects callers that hold an older case snapshot.
-    item.analysis = await runAnalysis(db, item);
+    item.analysis = await runAnalysis(db, item, runtime, runtimeConflicts);
     item.quote = null;
+    if (item.extractionReview || (runtime && !runtime.available)) {
+      db.saveCase(item);
+      throw new HttpError(409, item.extractionReview ? '询盘参数待确认，请核对并保存完整配置后再生成报价。' : '运行知识不可用，暂不能生成报价。', item.extractionReview ? 'INQUIRY_CONFIRMATION_REQUIRED' : 'RUNTIME_KNOWLEDGE_UNAVAILABLE');
+    }
     item.channel = channel;
     const knowledge = retrieveKnowledge(db, `${item.inquiry} ${item.requestedConfig.model} ${item.requestedConfig.market ?? ''}`, 6, knowledgeBundle);
     item.quote = await generateQuote(item, channel, knowledge);

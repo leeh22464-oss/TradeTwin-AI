@@ -16,7 +16,7 @@ interface StartedApp {
 }
 
 async function startApp(dataDir: string): Promise<StartedApp> {
-  const app = createApp({ dataDir });
+  const app = createApp({ dataDir, runtimeKnowledge: false });
   const server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as AddressInfo;
@@ -197,7 +197,9 @@ describe('TradeTwin API', () => {
     const chineseAnalysis = await request(started.baseUrl, `/api/cases/${chinese.body.id}/analyze`, jsonInit('POST', {}));
     expect(chineseAnalysis.response.status).toBe(200);
     expect(chineseAnalysis.body.analysis.totalCostEur).toBe(2100);
-    expect(chineseAnalysis.body.analysis.leadTimeDays).toBe(8);
+    expect(chineseAnalysis.body.analysis.calculation.estimatedDays).toBe(8);
+    expect(chineseAnalysis.body.analysis.leadTimeDays).toBeNull();
+    expect(chineseAnalysis.body.analysis.findings.find((f: { itemId: string }) => f.itemId === 'emc').status).toBe('review');
 
     const englishInquiry = 'Please quote 36W / IP44 and do not commit to delivery.';
     const english = await request(started.baseUrl, '/api/cases', jsonInit('POST', {
@@ -212,7 +214,8 @@ describe('TradeTwin API', () => {
     const englishAnalysis = await request(started.baseUrl, `/api/cases/${english.body.id}/analyze`, jsonInit('POST', {}));
     expect(englishAnalysis.response.status).toBe(200);
     expect(englishAnalysis.body.analysis.totalCostEur).toBe(2100);
-    expect(englishAnalysis.body.analysis.leadTimeDays).toBe(8);
+    expect(englishAnalysis.body.analysis.calculation.estimatedDays).toBe(8);
+    expect(englishAnalysis.body.analysis.leadTimeDays).toBeNull();
   });
 
   it('keeps explicit config authoritative over inquiry extraction', async () => {
@@ -374,7 +377,7 @@ describe('TradeTwin API', () => {
       expect(helperLegacy.title).toBe('中文报告');
       expect(normalizeUploadedReportDisplay({ ...legacyReport, title: '工程师自定义标题' }).title).toBe('工程师自定义标题');
 
-      legacyApp = createApp({ dataDir: legacyDir, seed: false });
+      legacyApp = createApp({ dataDir: legacyDir, seed: false, runtimeKnowledge: false });
       legacyServer = createServer(legacyApp);
       await new Promise<void>((resolve, reject) => {
         legacyServer!.once('error', reject);
@@ -519,7 +522,7 @@ describe('TradeTwin API', () => {
     expect(created.response.status).toBe(201);
     const analyzed = await request(started.baseUrl, `/api/cases/${created.body.id}/analyze`, jsonInit('POST', { idempotencyKey: 'evidence-freshness' }));
     expect(analyzed.response.status).toBe(200);
-    expect(analyzed.body.analysis.reviewCount).toBe(0);
+    expect(analyzed.body.analysis.findings.filter((f: { status: string }) => f.status === 'review').map((f: { itemId: string }) => f.itemId)).toEqual(['emc']);
     const quoted = await request(started.baseUrl, `/api/cases/${created.body.id}/quote`, jsonInit('POST', { channel: 'email' }));
     expect(quoted.response.status).toBe(200);
     expect(quoted.body.quote.en).toMatch(/€2,100|2,100/);
@@ -528,7 +531,7 @@ describe('TradeTwin API', () => {
     expect(unverified.response.status).toBe(200);
     const refreshedQuote = await request(started.baseUrl, `/api/cases/${created.body.id}/quote`, jsonInit('POST', { channel: 'email' }));
     expect(refreshedQuote.response.status).toBe(200);
-    expect(refreshedQuote.body.analysis.reviewCount).toBeGreaterThan(0);
+    expect(refreshedQuote.body.analysis.reviewCount).toBeGreaterThan(analyzed.body.analysis.reviewCount);
     expect(refreshedQuote.body.quote.en).toMatch(/pending confirmation|manual review|to be confirmed/i);
     const audit = await request(started.baseUrl, `/api/audit?caseId=${encodeURIComponent(created.body.id)}`);
     expect(audit.body.some((event: any) => event.type === 'evidence.changed')).toBe(true);
@@ -656,7 +659,9 @@ describe('TradeTwin API', () => {
     expect(after.response.status).toBe(200);
     expect(after.body.analysis.id).not.toBe(before.body.analysis.id);
     expect(after.body.analysis.totalCostEur).toBe(0);
-    expect(after.body.analysis.leadTimeDays).toBe(2);
+    expect(after.body.analysis.calculation.estimatedDays).toBe(2);
+    expect(after.body.analysis.leadTimeDays).toBeNull();
+    expect(after.body.analysis.findings.find((f: { itemId: string }) => f.itemId === 'emc').status).toBe('review');
     expect(after.body.analysis.findings.find((finding: any) => finding.itemId === 'temperature')?.status).toBe('reuse');
     expect(after.body.analysis.findings.find((finding: any) => finding.itemId === 'ip')?.status).toBe('reuse');
     expect(after.body.analysis.documentUpdates).toEqual(expect.arrayContaining(['doc', 'label', 'manual']));

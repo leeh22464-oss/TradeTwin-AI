@@ -119,6 +119,10 @@ export class AppDatabase {
         created_at TEXT NOT NULL,
         PRIMARY KEY(case_id, endpoint, fingerprint)
       );
+      CREATE TABLE IF NOT EXISTS runtime_report_snapshots (
+        id TEXT PRIMARY KEY,
+        managed_json TEXT NOT NULL
+      );
     `);
   }
 
@@ -182,6 +186,34 @@ export class AppDatabase {
       const report = rowData<EvidenceReport | null>(row, null);
       return report ? normalizeUploadedReportDisplay(report) : null;
     }).filter((item): item is EvidenceReport => !!item);
+  }
+
+  /** Refresh managed demo evidence without overwriting an engineer's edits. */
+  syncRuntimeReports(reports: EvidenceReport[]): string[] {
+    const conflicts: string[] = [];
+    this.sqlite.exec('BEGIN IMMEDIATE');
+    try {
+      for (const report of reports) {
+        const current = this.getReport(report.id);
+        const snapshot = this.sqlite.prepare('SELECT managed_json FROM runtime_report_snapshots WHERE id = ?').get(report.id) as { managed_json: string } | undefined;
+        const nextJson = json(report);
+        const currentJson = current ? json(current.report) : null;
+        const canRefresh = !current || currentJson === nextJson || currentJson === snapshot?.managed_json;
+        if (canRefresh) {
+          if (currentJson !== nextJson || !current?.sourcePath) {
+            this.saveReport(report, report.knowledgeSource ? resolve(report.knowledgeSource.path) : null);
+          }
+          if (snapshot?.managed_json !== nextJson) this.sqlite.prepare('INSERT INTO runtime_report_snapshots(id, managed_json) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET managed_json = excluded.managed_json').run(report.id, nextJson);
+        } else if (snapshot && snapshot.managed_json !== nextJson) {
+          conflicts.push(report.id);
+        }
+      }
+      this.sqlite.exec('COMMIT');
+      return conflicts;
+    } catch (error) {
+      this.sqlite.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   saveReport(report: EvidenceReport, sourcePath: string | null): EvidenceReport {

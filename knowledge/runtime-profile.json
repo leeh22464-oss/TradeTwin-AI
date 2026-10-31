@@ -1,0 +1,85 @@
+{
+  "profileId": "tradetwin-runtime-kb-demo",
+  "version": "rules-2026.10.31-demo.v2+kb.0.2.0",
+  "requireEmcReview": true,
+  "driverPreparationDays": 3,
+  "ruleIds": {
+    "coverage": [
+      "RULE-COVERAGE-RANGE-001"
+    ],
+    "mapping": [
+      "RULE-PARAMETER-TEST-MAP-001"
+    ],
+    "minimumRetest": [
+      "RULE-RETEST-MINIMUM-001"
+    ],
+    "driverReuse": [
+      "RULE-DRIVER-REUSE-001"
+    ],
+    "documentUpdate": [
+      "RULE-DOCUMENT-UPDATE-001"
+    ],
+    "quoteAssumption": [
+      "RULE-QUOTE-ASSUMPTION-001"
+    ],
+    "contract": [
+      "RULE-QUOTE-ASSUMPTION-001"
+    ]
+  },
+  "modelAliases": {
+    "NL-L": [
+      "NL-L24"
+    ]
+  },
+  "costs": [
+    {
+      "id": "temperature",
+      "title": "温升与耐热相关测试",
+      "feeEur": 1200,
+      "days": 6,
+      "group": "test"
+    },
+    {
+      "id": "ip",
+      "title": "防尘防水测试",
+      "feeEur": 900,
+      "days": 5,
+      "group": "test"
+    },
+    {
+      "id": "emc",
+      "title": "EMC 测试",
+      "feeEur": 1500,
+      "days": 7,
+      "group": "test"
+    },
+    {
+      "id": "electrical-strength",
+      "title": "电气强度与绝缘复核",
+      "feeEur": 0,
+      "days": 3,
+      "group": "test"
+    },
+    {
+      "id": "rohs",
+      "title": "RoHS / REACH 材料证据复核",
+      "feeEur": 0,
+      "days": 3,
+      "group": "test"
+    },
+    {
+      "id": "document-update",
+      "title": "DoC、标签、规格书与德语说明书更新",
+      "feeEur": 0,
+      "days": 2,
+      "group": "document"
+    },
+    {
+      "id": "driver-preparation",
+      "title": "新驱动电源打样与准备",
+      "feeEur": 0,
+      "days": 3,
+      "group": "preparation"
+    }
+  ]
+}

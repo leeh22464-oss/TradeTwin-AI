@@ -8,7 +8,7 @@ import type {
   RuleDefinition,
 } from '../shared/types';
 
-export const RULE_VERSION = 'rules-2026.10.31-demo.v1';
+export const RULE_VERSION = 'rules-2026.10.31-demo.v2';
 
 export const BASE_CONFIG: ProductConfig = {
   model: 'NL-L',
@@ -151,6 +151,7 @@ export const seedReports: EvidenceReport[] = [
 ];
 
 export const seedCosts: CostItem[] = [
+  { id: 'driver-preparation', title: '新驱动打样（串行准备，演示假设）', feeEur: 0, days: 3, group: 'preparation' },
   { id: 'temperature', title: '温升与耐热相关测试', feeEur: 1200, days: 6, group: 'test' },
   { id: 'ip', title: '防尘防水测试', feeEur: 900, days: 5, group: 'test' },
   { id: 'emc', title: 'EMC 测试', feeEur: 1500, days: 7, group: 'test' },
@@ -172,7 +173,7 @@ export const seedRules: RuleDefinition[] = [
   rule('R-MARKET-001', '目标市场覆盖', '报告或声明必须有目标市场适用范围。', 'coverage'),
   rule('R-TEMP-001', '温升测试映射', '功率超出温升报告区间时生成温升补测。', 'mapping'),
   rule('R-IP-002', '防尘防水测试映射', '防护等级变化且报告未覆盖新等级时生成 IP 补测。', 'mapping'),
-  rule('R-EMC-001', 'EMC 独立条件', 'EMC 可沿用需要驱动、功率、系列、材料和市场等条件共同匹配。', 'mapping'),
+  rule('R-EMC-001', 'EMC 变更复核', '配置变更时，驱动相同仅支持可能沿用的假设，仍须工程/品质复核。', 'mapping'),
   rule('R-ROHS-001', 'RoHS 材料证据', '材料与报告不一致时生成 RoHS/REACH 复核。', 'mapping'),
   rule('R-DOC-001', 'DoC 更新', '功率、IP、驱动、材料或市场变化后更新 DoC。', 'documents'),
   rule('R-LABEL-001', '标签更新', '功率或 IP 变化后更新产品标签。', 'documents'),
