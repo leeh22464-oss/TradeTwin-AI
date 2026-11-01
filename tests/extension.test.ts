@@ -152,7 +152,7 @@ describe('Alibaba content-script message boundary', () => {
   });
 });
 
-async function panel(options: { page?: any; tabId?: number; saved?: any; syncFails?: boolean; insertOk?: boolean } = {}) {
+async function panel(options: { page?: any; tabId?: number; saved?: any; syncFails?: boolean; insertOk?: boolean; captureFails?: boolean; url?: string } = {}) {
   const elements = new Map<string, Element>();
   const $ = (selector: string) => { if (!elements.has(selector)) elements.set(selector, new Element()); return elements.get(selector)!; };
   $('#channel').value = 'alibaba_rfq';
@@ -162,7 +162,7 @@ async function panel(options: { page?: any; tabId?: number; saved?: any; syncFai
   const pageMessages: string[] = [];
   const sent: { id: number; message: any }[] = [];
   const nextQueryTabs: number[] = [];
-  const tab = { id: options.tabId || 7, url: 'https://message.alibaba.com/chat' };
+  const tab = { id: options.tabId || 7, url: options.url || 'https://message.alibaba.com/chat?buyerId=42' };
   const page = options.page || { selection: '', recent: 'Exact buyer request\n36W / IP44', source: 'recent', conversationKey: 'https://message.alibaba.com/chat?buyerId=42' };
   const result = { session_id: 'session-42', run_id: 'run-1', round: 1, extraction: { method: 'rules', language: 'en' },
     change_order: [], quote_options: [], questions: [], replies: { en: { body: 'Draft only', check: { level: 'green', annotations: [] } } } };
@@ -171,8 +171,9 @@ async function panel(options: { page?: any; tabId?: number; saved?: any; syncFai
     setTimeout: () => 0, clearTimeout: () => {}, navigator: { clipboard: { writeText: async (text: string) => { copies.push(text); } } },
     fetch: async (url: string, init?: any) => {
       calls.push({ url, body: init?.body ? JSON.parse(init.body) : undefined });
-      const ok = !(options.syncFails && url.endsWith('/sync'));
-      return { ok, status: ok ? 200 : 503, json: async () => url.endsWith('/health') ? { llm_configured: false } : url.endsWith('/sync') ? {} : url.endsWith('/check') ? { level: 'green', annotations: [] } : result };
+      const failed = (options.syncFails && url.endsWith('/sync')) || (options.captureFails && url.endsWith('/api/extension/captures'));
+      const ok = !failed;
+      return { ok, status: ok ? 200 : 503, json: async () => url.endsWith('/health') ? { llm_configured: false } : url.endsWith('/api/extension/captures') ? { id: 'capture-1', status: 'pending' } : url.endsWith('/sync') ? {} : url.endsWith('/check') ? { level: 'green', annotations: [] } : result };
     },
     chrome: {
       tabs: { query: async () => [{ ...tab, id: nextQueryTabs.shift() ?? tab.id }], sendMessage: async (id: number, msg: any) => { sent.push({ id, message: msg }); pageMessages.push(msg.type); return msg.type === 'tt-read' ? page : { ok: !!options.insertOk }; } },
@@ -185,6 +186,46 @@ async function panel(options: { page?: any; tabId?: number; saved?: any; syncFai
 }
 
 describe('extension panel integration', () => {
+  it('submits the reviewed Alibaba capture to Node without analyzing or sending it', async () => {
+    const p = await panel();
+    await p.click('#btn-read');
+    p.$('#input').value = 'reviewed buyer inquiry';
+    await p.click('#btn-capture');
+
+    const capture = p.calls.find((call) => call.url.endsWith('/api/extension/captures'));
+    expect(capture).toMatchObject({ url: 'http://127.0.0.1:3001/api/extension/captures', body: {
+      text: 'reviewed buyer inquiry', source_url: buyer42, conversation_key: buyer42,
+    } });
+    expect(Object.keys(capture!.body)).toEqual(['text', 'source_url', 'conversation_key', 'page_key']);
+    expect(p.calls.some((call) => call.url.endsWith('/analyze'))).toBe(false);
+    expect(p.pageMessages).not.toContain('tt-insert');
+    expect(p.$('#input').value).toBe('');
+  });
+  it('rejects capture submission from a non-Alibaba page', async () => {
+    const p = await panel({ url: 'https://example.com/chat' });
+    expect(p.$('#btn-capture').disabled).toBe(true);
+    await p.click('#btn-read');
+    expect(p.$('#btn-capture').disabled).toBe(true);
+    expect(p.calls.some((call) => call.url.endsWith('/api/extension/captures'))).toBe(false);
+  });
+  it('requires the reviewed conversation identity to remain current before capture', async () => {
+    const p = await panel();
+    await p.click('#btn-read');
+    p.$('#input').value = 'buyer A inquiry';
+    p.page.conversationKey = 'https://message.alibaba.com/chat?buyerId=other';
+    await p.click('#btn-capture');
+    expect(p.calls.some((call) => call.url.endsWith('/api/extension/captures'))).toBe(false);
+    expect(p.$('#input').value).toBe('buyer A inquiry');
+    expect(p.$('#toast').textContent).toContain('变化');
+  });
+  it('does not clear reviewed text when capture submission fails', async () => {
+    const p = await panel({ captureFails: true });
+    await p.click('#btn-read');
+    p.$('#input').value = 'keep this text for retry';
+    await p.click('#btn-capture');
+    expect(p.$('#input').value).toBe('keep this text for retry');
+    expect(p.$('#toast').classList).toBeDefined();
+  });
   it('previews exact extracted text for editing and sends nothing until analyze', async () => {
     const p = await panel();
     await p.click('#btn-read');

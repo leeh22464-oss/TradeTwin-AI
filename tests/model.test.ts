@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { AnalysisResult } from '../shared/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateQuote, getModelStatus } from '../server/model';
 import { analyzeChange } from '../server/engine';
@@ -23,6 +24,29 @@ function analyzedCase() {
   return item;
 }
 
+// Explicitly constructed fixture for the pricing assertion: the test item is
+// marked as manually confirmed, so its deterministic subtotal may be allocated
+// to the unit price. This is intentionally separate from the default EMC-review
+// scenario returned by the real rule engine.
+function confirmedCostCase() {
+  const item = createSeedCase();
+  const baseline = analyzeChange(item.baseConfig, seedReports);
+  const confirmed: AnalysisResult = {
+    ...baseline,
+    findings: baseline.findings.map((finding) => finding.itemId === 'temperature'
+      ? { ...finding, status: 'retest', feeEur: 2100, days: 6 }
+      : finding),
+    requiredTests: ['temperature'],
+    reviewCount: 0,
+    totalCostEur: 2100,
+    leadTimeDays: 6,
+    canQuote: true,
+    calculation: { ...baseline.calculation, parallelDays: 6, estimatedDays: 6, formula: '6 个工作日（人工确认 fixture）' },
+  };
+  item.analysis = confirmed;
+  return item;
+}
+
 async function withModel(en: string, de: string, run: () => Promise<void>) {
   const server = createServer((_req, res) => {
     res.setHeader('content-type', 'application/json');
@@ -42,10 +66,20 @@ describe('localized quote fact boundaries', () => {
     const quote = await generateQuote(analyzedCase(), 'email');
     expect(quote.modelMode).toBe('demo');
     expect(quote.en).toContain('€2,100');
-    expect(quote.en).toContain('€22.70');
+    expect(quote.en).toContain('pending manual review');
+    expect(quote.en).toContain('Identified necessary testing subtotal: €2,100');
+    expect(quote.en).not.toContain('€22.70');
     expect(quote.de).toContain('Wasserschutz');
+    expect(quote.de).toContain('2.100 €');
     expect(quote.internal.quality.join(' ')).toContain('温升');
+    expect(quote.internal.quality.join(' ')).toContain('EMC');
     expect(quote.internal.procurement.join(' ')).toContain('防尘防水');
+  });
+
+  it('allocates the unit price only for an explicitly confirmed no-review fixture', async () => {
+    const quote = await generateQuote(confirmedCostCase(), 'email');
+    expect(quote.en).toContain('€22.70');
+    expect(quote.en).not.toContain('pending manual review');
   });
 
   it('keeps unknown compliance costs pending instead of quoting zero', async () => {

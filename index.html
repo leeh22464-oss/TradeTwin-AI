@@ -3,8 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b4f3c" />
+    <meta name="theme-color" content="#f3f5f2" />
     <title>贸链通 TradeTwin AI</title>
+    <script>
+      try {
+        const theme = localStorage.getItem('tradetwin-theme') === 'dark' ? 'dark' : 'light';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#111715' : '#f3f5f2';
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

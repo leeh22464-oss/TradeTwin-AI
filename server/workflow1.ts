@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
-import type { CaseRecord, ProductConfig } from '../shared/types.js';
+import type { CaseRecord, ExtensionCapture, ProductConfig } from '../shared/types.js';
 import { AppDatabase } from './db.js';
 import { analyzeChange } from './engine.js';
 import { BASE_CONFIG, RULE_VERSION } from './seed.js';
@@ -162,6 +162,82 @@ export function refreshWorkflow1Readiness(item: CaseRecord, db: AppDatabase): Ca
   return item;
 }
 
+type Workflow1SyncOutcome = { status: number; body: Record<string, unknown> };
+
+function syncWorkflow1Result(db: AppDatabase, raw: unknown): Workflow1SyncOutcome {
+  let result: Record<string, unknown>;
+  try { result = parseWorkflow1Result(raw); } catch (error) {
+    return { status: 400, body: { code: 'INVALID_WORKFLOW1_RESULT', message: error instanceof Error ? error.message : '工作流一结果无效' } };
+  }
+  const sessionId = string(result.session_id).trim(), runId = string(result.run_id).trim();
+  const fingerprint = createHash('sha256').update(`${sessionId}:${runId}`).digest('hex');
+  let item = db.getCase(sessionId);
+  if (item && (db.getCachedRequest(sessionId, 'workflow1.sync', fingerprint) || item.workflow1LastRunId === runId)) {
+    refreshWorkflow1Readiness(item, db);
+    return { status: 200, body: { case: item, replay: true } };
+  }
+  const previousRound = typeof item?.workflow1Result?.round === 'number' ? item.workflow1Result.round : 0;
+  if (item && Number(result.round) <= previousRound) {
+    return { status: 409, body: { code: 'WORKFLOW1_ROUND_CONFLICT', message: '该轮次早于或等于已保存轮次，请载入当前会话后重新计算。' } };
+  }
+  const createdAt = string(result.created_at);
+  const changed = requestedConfig(result, item?.requestedConfig ?? BASE_CONFIG);
+  if (!item) {
+    item = {
+      id: sessionId, name: `工作流一询盘 ${sessionId}`, buyer: '待确认买家', createdAt, updatedAt: createdAt,
+      round: 0, baseConfig: { ...BASE_CONFIG }, requestedConfig: changed, quantity: 100, unitPriceEur: 0,
+      channel: result.channel === 'alibaba_rfq' ? 'rfq' : 'email', inquiry: string(object(result.input).text),
+      commitment: '', analysis: null, quote: null, messages: [],
+    };
+  }
+  item.requestedConfig = changed;
+  item.channel = result.channel === 'alibaba_rfq' ? 'rfq' : 'email';
+  item.inquiry = string(object(result.input).text, item.inquiry);
+  item.round = Number(result.round);
+  const options = (result.quote_options as unknown[]).map(object);
+  const selected = preferredOption(result);
+  const order = (result.change_order as unknown[]).map(object);
+  const quantity = order.find((row) => row.field === 'quantity')?.to ?? selected.quantity;
+  if (typeof quantity === 'number') item.quantity = quantity;
+  const buyer = string(result.buyer_name, string(object(result.input).buyer_name));
+  const subject = string(result.subject, string(object(result.input).subject));
+  if (buyer.trim()) item.buyer = buyer.trim();
+  if (subject.trim()) item.name = subject.trim();
+  const deliveryHold = object(result.constraints).hide_delivery_date;
+  if (deliveryHold === true) item.commitment = '暂不承诺具体交期';
+  else if (deliveryHold === false && item.commitment === '暂不承诺具体交期') item.commitment = '';
+  const pendingReason = quotePendingReason(result, changed, db);
+  item.workflow1QuoteReady = !pendingReason;
+  item.workflow1PendingReason = pendingReason;
+  item.workflow1EvidenceVersion = string(object(result.scope).evidence_version);
+  item.unitPriceEur = item.workflow1QuoteReady && typeof selected.unit_price_eur === 'number' ? selected.unit_price_eur : 0;
+  item.quote = null;
+  item.analysis = analyzeChange(item.requestedConfig, db.listReports(), {
+    baseConfig: item.baseConfig,
+    costs: db.listCosts(),
+    includeAlternatives: false,
+  });
+  item.workflow1Result = result;
+  item.workflow1LastRunId = runId;
+  item.updatedAt = createdAt;
+  db.sqlite.exec('BEGIN IMMEDIATE');
+  try {
+    db.saveCase(item);
+    db.addAudit({ id: `audit-${randomUUID()}`, caseId: sessionId, type: 'workflow1.synced', actor: 'workflow1',
+      detail: JSON.stringify({ round: item.round, runId, ruleVersion: object(result.scope).rule_version,
+        evidenceVersion: item.workflow1EvidenceVersion, quoteReady: item.workflow1QuoteReady,
+        optionCount: options.length, result, synthetic: true }), createdAt, ruleVersion: item.analysis.ruleVersion, fingerprint });
+    db.cacheRequest(sessionId, 'workflow1.sync', fingerprint, result);
+    db.sqlite.exec('COMMIT');
+  } catch (error) { db.sqlite.exec('ROLLBACK'); throw error; }
+  return { status: 200, body: { case: item, replay: false } };
+}
+
+function captureSummary(capture: ExtensionCapture): Omit<ExtensionCapture, 'text'> {
+  const { text: _text, ...summary } = capture;
+  return summary;
+}
+
 function mapFindingId(value: unknown): string {
   const key = String(value ?? '');
   return ({ thermal_rise: 'temperature', ingress_protection: 'ip', emc_electrical: 'emc',
@@ -197,74 +273,53 @@ export function registerWorkflow1(app: Express, db: AppDatabase): void {
   });
 
   app.post('/api/workflow1/sync', (req, res) => {
-    let result: Record<string, unknown>;
-    try { result = parseWorkflow1Result(req.body); } catch (error) {
-      res.status(400).json({ code: 'INVALID_WORKFLOW1_RESULT', message: error instanceof Error ? error.message : '工作流一结果无效' });
+    const outcome = syncWorkflow1Result(db, req.body);
+    res.status(outcome.status).json(outcome.body);
+  });
+
+  app.post('/api/extension/captures/:id/import', async (req, res) => {
+    const capture = db.getCapture(req.params.id);
+    if (!capture) { res.status(404).json({ code: 'CAPTURE_NOT_FOUND', message: '捕获不存在或已过期' }); return; }
+    if (capture.status === 'imported' && capture.caseId) {
+      const item = db.getCase(capture.caseId);
+      if (!item) { res.status(404).json({ code: 'CAPTURE_CASE_NOT_FOUND', message: '关联案件不存在' }); return; }
+      refreshWorkflow1Readiness(item, db);
+      res.json({ case: item, replay: true });
       return;
     }
-    const sessionId = string(result.session_id).trim(), runId = string(result.run_id).trim();
-    const fingerprint = createHash('sha256').update(`${sessionId}:${runId}`).digest('hex');
-    let item = db.getCase(sessionId);
-    if (item && (db.getCachedRequest(sessionId, 'workflow1.sync', fingerprint) || item.workflow1LastRunId === runId)) {
-      // An old run is a replay, never a request to roll the current case back.
-      refreshWorkflow1Readiness(item, db);
-      res.json({ case: item, replay: true }); return;
-    }
-    const previousRound = typeof item?.workflow1Result?.round === 'number' ? item.workflow1Result.round : 0;
-    if (item && Number(result.round) <= previousRound) {
-      res.status(409).json({ code: 'WORKFLOW1_ROUND_CONFLICT', message: '该轮次早于或等于已保存轮次，请载入当前会话后重新计算。' }); return;
-    }
-    const createdAt = string(result.created_at);
-    const changed = requestedConfig(result, item?.requestedConfig ?? BASE_CONFIG);
-    if (!item) {
-      item = {
-        id: sessionId, name: `工作流一询盘 ${sessionId}`, buyer: '待确认买家', createdAt, updatedAt: createdAt,
-        round: 0, baseConfig: { ...BASE_CONFIG }, requestedConfig: changed, quantity: 100, unitPriceEur: 0,
-        channel: result.channel === 'alibaba_rfq' ? 'rfq' : 'email', inquiry: string(object(result.input).text),
-        commitment: '', analysis: null, quote: null, messages: [],
-      };
-    }
-    item.requestedConfig = changed;
-    item.channel = result.channel === 'alibaba_rfq' ? 'rfq' : 'email';
-    item.inquiry = string(object(result.input).text, item.inquiry);
-    item.round = Number(result.round);
-    const options = (result.quote_options as unknown[]).map(object);
-    const selected = preferredOption(result);
-    const order = (result.change_order as unknown[]).map(object);
-    const quantity = order.find((row) => row.field === 'quantity')?.to ?? selected.quantity;
-    if (typeof quantity === 'number') item.quantity = quantity;
-    const buyer = string(result.buyer_name, string(object(result.input).buyer_name));
-    const subject = string(result.subject, string(object(result.input).subject));
-    if (buyer.trim()) item.buyer = buyer.trim();
-    if (subject.trim()) item.name = subject.trim();
-    const deliveryHold = object(result.constraints).hide_delivery_date;
-    if (deliveryHold === true) item.commitment = '暂不承诺具体交期';
-    else if (deliveryHold === false && item.commitment === '暂不承诺具体交期') item.commitment = '';
-    const pendingReason = quotePendingReason(result, changed, db);
-    item.workflow1QuoteReady = !pendingReason;
-    item.workflow1PendingReason = pendingReason;
-    item.workflow1EvidenceVersion = string(object(result.scope).evidence_version);
-    item.unitPriceEur = item.workflow1QuoteReady && typeof selected.unit_price_eur === 'number' ? selected.unit_price_eur : 0;
-    item.quote = null;
-    item.analysis = analyzeChange(item.requestedConfig, db.listReports(), {
-      baseConfig: item.baseConfig,
-      costs: db.listCosts(),
-      includeAlternatives: false,
-    });
-    item.workflow1Result = result;
-    item.workflow1LastRunId = runId;
-    item.updatedAt = createdAt;
-    db.sqlite.exec('BEGIN IMMEDIATE');
     try {
-      db.saveCase(item);
-      db.addAudit({ id: `audit-${randomUUID()}`, caseId: sessionId, type: 'workflow1.synced', actor: 'workflow1',
-        detail: JSON.stringify({ round: item.round, runId, ruleVersion: object(result.scope).rule_version,
-          evidenceVersion: item.workflow1EvidenceVersion, quoteReady: item.workflow1QuoteReady,
-          optionCount: options.length, result, synthetic: true }), createdAt, ruleVersion: item.analysis.ruleVersion, fingerprint });
-      db.cacheRequest(sessionId, 'workflow1.sync', fingerprint, result);
-      db.sqlite.exec('COMMIT');
-    } catch (error) { db.sqlite.exec('ROLLBACK'); throw error; }
-    res.json({ case: item, replay: false });
+      const response = await fetch(`${url()}/api/analyze`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: capture.text, session_id: capture.sessionId, channel: 'alibaba_rfq', source: 'extension' }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!response.ok) {
+        res.status(502).json({ code: 'WORKFLOW1_ANALYZE_FAILED', message: '询盘分析失败，请检查内容后重试。' });
+        return;
+      }
+      let raw: unknown;
+      try { raw = await response.json(); } catch {
+        res.status(502).json({ code: 'INVALID_WORKFLOW1_RESULT', message: '工作流一返回了无效结果。' });
+        return;
+      }
+      let result: Record<string, unknown>;
+      try { result = parseWorkflow1Result(raw); } catch (error) {
+        res.status(502).json({ code: 'INVALID_WORKFLOW1_RESULT', message: error instanceof Error ? error.message : '工作流一结果无效' });
+        return;
+      }
+      if (result.session_id !== capture.sessionId || result.channel !== 'alibaba_rfq') {
+        res.status(502).json({ code: 'INVALID_WORKFLOW1_RESULT', message: '工作流一返回的会话或渠道与捕获记录不一致。' });
+        return;
+      }
+      const outcome = syncWorkflow1Result(db, result);
+      if (outcome.status !== 200) { res.status(outcome.status).json(outcome.body); return; }
+      const syncedCase = outcome.body.case as CaseRecord;
+      const imported = db.markCaptureImported(capture.id, syncedCase.id);
+      if (!imported) { res.status(410).json({ code: 'CAPTURE_EXPIRED', message: '捕获已过期，请从插件重新提交。' }); return; }
+      res.json({ case: syncedCase, replay: outcome.body.replay === true });
+    } catch {
+      res.status(503).json({ code: 'WORKFLOW1_UNAVAILABLE', message: '业务分析服务暂不可用。请检查本地服务并重试。' });
+    }
   });
 
   const proxy = async (req: Request, res: Response, next: NextFunction) => {

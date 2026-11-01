@@ -36,7 +36,7 @@ describe('工作流一同源接入', () => {
     await new Promise<void>((resolve) => upstream!.listen(0, '127.0.0.1', resolve));
     process.env.WORKFLOW1_URL = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
     dataDir = await mkdtemp(join(tmpdir(), 'tradetwin-wf1-'));
-    const app = createApp({ dataDir });
+    const app = createApp({ dataDir, runtimeKnowledge: false });
     const { createServer: startServer } = await import('node:http');
     const server = startServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -59,7 +59,7 @@ describe('工作流一同源接入', () => {
   it('returns a recoverable service-unavailable response when workflow one is down', async () => {
     process.env.WORKFLOW1_URL = 'http://127.0.0.1:1';
     dataDir = await mkdtemp(join(tmpdir(), 'tradetwin-wf1-'));
-    const app = createApp({ dataDir });
+    const app = createApp({ dataDir, runtimeKnowledge: false });
     const { createServer: startServer } = await import('node:http');
     const server = startServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -78,6 +78,7 @@ describe('工作流一同源接入', () => {
 describe('workflow one case synchronization', () => {
   let app: ReturnType<typeof createApp>;
   let server: Server;
+  let upstream: Server | undefined;
   let db: AppDatabase;
   let base: string;
   let dataDir: string;
@@ -112,7 +113,7 @@ describe('workflow one case synchronization', () => {
 
   beforeEach(async () => {
     dataDir = await mkdtemp(join(tmpdir(), 'tradetwin-sync-'));
-    app = createApp({ dataDir });
+    app = createApp({ dataDir, runtimeKnowledge: false });
     db = app.locals.db;
     server = createServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -120,10 +121,36 @@ describe('workflow one case synchronization', () => {
     envelope = await (await fetch(`${base}/api/workflow2/envelope`)).json();
   });
   afterEach(async () => {
+    if (upstream?.listening) await new Promise<void>((resolve) => upstream!.close(() => resolve()));
+    upstream = undefined;
     vi.restoreAllMocks();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     db.close();
     await rm(dataDir, { recursive: true, force: true });
+  });
+
+  const createCapture = (id = 'capture-1', sessionId = 'extension-session-1') => db.createCapture({
+    id, sessionId, text: '36W IP44, 2000 pcs', sourceUrl: 'https://message.alibaba.com/chat?buyerId=42',
+    createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600_000).toISOString(), status: 'pending',
+  });
+  const importCapture = (id = 'capture-1') => fetch(`${base}/api/extension/captures/${id}/import`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+  });
+  const startAnalyze = (makeResult: (body: any) => unknown) => new Promise<void>((resolve) => {
+    upstream = createServer((req, res) => {
+      let raw = '';
+      req.setEncoding('utf8');
+      req.on('data', (chunk) => { raw += chunk; });
+      req.on('end', () => {
+        const body = JSON.parse(raw);
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(makeResult(body)));
+      });
+    });
+    upstream.listen(0, '127.0.0.1', () => {
+      process.env.WORKFLOW1_URL = `http://127.0.0.1:${(upstream!.address() as AddressInfo).port}`;
+      resolve();
+    });
   });
 
   it('uses the selected configuration, quantity and buyer metadata and audits exactly once', async () => {
@@ -131,11 +158,65 @@ describe('workflow one case synchronization', () => {
     const first = await post(selected);
     expect(first.status).toBe(200);
     expect(first.body.case.requestedConfig).toMatchObject({ powerW: 30, ip: 'IP44', driver: 'DRV-A' });
-    expect(first.body.case).toMatchObject({ quantity: 2000, buyer: 'Anna Becker', name: 'Bathroom project', unitPriceEur: 22.45, workflow1QuoteReady: true, workflow1EvidenceVersion: envelope.evidence_version });
+    expect(first.body.case).toMatchObject({ quantity: 2000, buyer: 'Anna Becker', name: 'Bathroom project', unitPriceEur: 0, workflow1QuoteReady: false, workflow1EvidenceVersion: envelope.evidence_version });
+    expect(first.body.case.workflow1PendingReason).toContain('补测费用或排期');
     expect((await post(selected)).body.replay).toBe(true);
     const events = db.listAudit('session-1').filter((event) => event.type === 'workflow1.synced');
     expect(events).toHaveLength(1);
-    expect(JSON.parse(events[0]!.detail)).toMatchObject({ result: selected, evidenceVersion: envelope.evidence_version, quoteReady: true, optionCount: 2 });
+    expect(JSON.parse(events[0]!.detail)).toMatchObject({ result: selected, evidenceVersion: envelope.evidence_version, quoteReady: false, optionCount: 2 });
+  });
+
+  it('imports an extension capture into a shared case using its stable session id', async () => {
+    const capture = createCapture();
+    let received: any;
+    await startAnalyze((body) => {
+      received = body;
+      return result({ session_id: body.session_id, channel: body.channel, input: { text: body.text, source: body.source } });
+    });
+
+    const response = await importCapture(capture.id);
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(received).toMatchObject({ text: capture.text, session_id: capture.sessionId, channel: 'alibaba_rfq', source: 'extension' });
+    expect(body).toMatchObject({ replay: false, case: { id: capture.sessionId, channel: 'rfq', inquiry: capture.text } });
+    expect(db.getCapture(capture.id)).toMatchObject({ status: 'imported', caseId: capture.sessionId });
+  });
+
+  it('replays a completed capture import without another analyze or audit event', async () => {
+    const capture = createCapture();
+    let analyzeCount = 0;
+    await startAnalyze((body) => {
+      analyzeCount += 1;
+      return result({ session_id: body.session_id, channel: body.channel, input: { text: body.text } });
+    });
+
+    const first = await importCapture(capture.id);
+    const second = await importCapture(capture.id);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ replay: true, case: { id: capture.sessionId } });
+    expect(analyzeCount).toBe(1);
+    expect(db.listAudit(capture.sessionId).filter((event) => event.type === 'workflow1.synced')).toHaveLength(1);
+  });
+
+  it('rejects an invalid workflow-one result and keeps the capture pending', async () => {
+    const capture = createCapture();
+    await startAnalyze(() => ({ session_id: capture.sessionId, run_id: '', round: 1 }));
+
+    const response = await importCapture(capture.id);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ code: 'INVALID_WORKFLOW1_RESULT' });
+    expect(db.getCapture(capture.id)).toMatchObject({ status: 'pending' });
+  });
+
+  it('leaves a capture pending when workflow one is unavailable', async () => {
+    const capture = createCapture();
+    process.env.WORKFLOW1_URL = 'http://127.0.0.1:1';
+
+    const response = await importCapture(capture.id);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: 'WORKFLOW1_UNAVAILABLE' });
+    expect(db.getCapture(capture.id)).toMatchObject({ status: 'pending' });
   });
 
   it('replays any earlier run without overwriting the current case and rejects unseen old rounds', async () => {

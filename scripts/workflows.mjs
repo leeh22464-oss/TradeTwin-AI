@@ -44,12 +44,10 @@ function python() {
     const imports = spawnSync(command, [...args, '-c', 'import fastapi, uvicorn, httpx, pydantic'], {
       cwd: root, stdio: 'ignore', timeout: 15_000, windowsHide: true,
     });
-    if (imports.status !== 0) {
-      throw new Error(`Python dependencies are missing. Activate the selected Python environment, then run: ${install}`);
-    }
+    if (imports.status !== 0) continue;
     return { command, args };
   }
-  throw new Error(`Python 3.11+ is required${explicit ? '; WORKFLOW1_PYTHON did not name a working interpreter' : ''}. Install Python or set WORKFLOW1_PYTHON, then run: ${install}`);
+  return null;
 }
 
 async function checkPorts(ports) {
@@ -187,7 +185,7 @@ async function main() {
   if (!existsSync(apiFile)) throw new Error(mode === 'start' ? 'Production build missing. Run npm run build before npm start.' : 'Node dependencies missing. Run npm install.');
   if (mode === 'start' && !existsSync(resolve(root, 'dist/index.html'))) throw new Error('Frontend build missing. Run npm run build before npm start.');
   if (mode === 'dev' && !existsSync(resolve(root, 'node_modules/vite/bin/vite.js'))) throw new Error('Vite is missing. Run npm install.');
-  await checkPorts([nodePort, pythonPort, ...(mode === 'dev' ? [vitePort] : [])]);
+  await checkPorts([nodePort, ...(interpreter ? [pythonPort] : []), ...(mode === 'dev' ? [vitePort] : [])]);
   if (windows && !process.argv.includes('--windows-job-child')) return guardedWindows();
 
   const nodeOrigin = `http://127.0.0.1:${nodePort}`;
@@ -217,7 +215,8 @@ async function main() {
       }
     });
   }
-  launch('Python API', interpreter.command, [...interpreter.args, '-m', 'uvicorn', 'tradetwin.server:app', '--host', '127.0.0.1', '--port', String(pythonPort)], resolve(root, 'workflow-1/app'));
+  if (interpreter) launch('Python API', interpreter.command, [...interpreter.args, '-m', 'uvicorn', 'tradetwin.server:app', '--host', '127.0.0.1', '--port', String(pythonPort)], resolve(root, 'workflow-1/app'));
+  else console.warn(`Python 工作流一未启动；主询盘工作台仍可用。需要兼容桥接时安装 Python 3.11+ 及依赖：${install}`);
   launch('Node API', process.execPath, mode === 'dev' ? [apiFile, 'watch', 'server/index.ts'] : [apiFile]);
   if (mode === 'dev') launch('Vite', process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(vitePort), '--strictPort']);
   console.log(`Starting both workflows. API: ${nodeOrigin}; Python: ${workflow1}; workspace: ${mode === 'dev' ? `http://127.0.0.1:${vitePort}` : nodeOrigin}`);

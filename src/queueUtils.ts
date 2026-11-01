@@ -120,6 +120,31 @@ export function getQueueStatus(caseRecord: CaseRecord): QueueCaseStatus {
   return { key: 'ready', label: '已推演', description: '规则已计算', hasAnalysis: true, hasReview, hasRetest, hasReply, reviewCount, retestCount };
 }
 
+export interface QueueOverview {
+  total: number;
+  attention: number;
+  pendingAnalysis: number;
+  needsReview: number;
+  withRetest: number;
+  ready: number;
+  analysed: number;
+  replyDrafts: number;
+}
+
+export function getQueueOverview(cases: CaseRecord[]): QueueOverview {
+  const statuses = cases.map(getQueueStatus);
+  return {
+    total: cases.length,
+    attention: statuses.filter((status) => status.key !== 'ready').length,
+    pendingAnalysis: statuses.filter((status) => status.key === 'unanalysed').length,
+    needsReview: statuses.filter((status) => status.hasReview).length,
+    withRetest: statuses.filter((status) => status.hasRetest).length,
+    ready: statuses.filter((status) => status.key === 'ready').length,
+    analysed: statuses.filter((status) => status.hasAnalysis).length,
+    replyDrafts: statuses.filter((status) => status.hasReply).length,
+  };
+}
+
 function hasUnknownFeeCondition(caseRecord: CaseRecord): boolean {
   const analysis = caseRecord.analysis;
   if (!analysis) return true;

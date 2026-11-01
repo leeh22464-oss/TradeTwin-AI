@@ -5,6 +5,15 @@ export interface ProductConfig {
   material: string | null; market: string | null;
 }
 export interface EvidencePage { page: number; text: string }
+export interface KnowledgeProvenance {
+  path: string; documentId?: string; page?: number; ruleId?: string; sha256?: string;
+}
+export interface RuntimeKnowledgeContext {
+  profileId: string; version: string; fingerprint: string; sources: KnowledgeProvenance[];
+}
+export interface RuntimeKnowledgeStatus extends RuntimeKnowledgeContext {
+  available: boolean; warnings: string[];
+}
 export interface Coverage {
   series: string | null; powerMinW: number | null; powerMaxW: number | null;
   ipLevels: string[]; drivers: string[]; materials: string[]; markets: string[];
@@ -16,25 +25,28 @@ export interface EvidenceReport {
   filename: string; filenameEncoding?: 'utf-8'; pageCount: number; pages: EvidencePage[]; coverage: Coverage;
   verified: boolean; notes: string; createdAt: string;
   testScopes?: Record<string, { coverage: Coverage; page: number; quote?: string }>;
+  knowledgeSource?: KnowledgeProvenance;
 }
-export interface EvidenceRef { reportId: string; page: number; quote: string }
+export interface EvidenceRef { reportId: string; page: number; quote: string; source?: KnowledgeProvenance }
 export interface Finding {
   id: string; itemId: string; title: string; category: 'compliance' | 'documents' | 'contract';
   status: FindingStatus; reason: string; ruleIds: string[]; evidence: EvidenceRef[];
   feeEur: number | null; days: number | null;
 }
-export interface RuleDefinition { id: string; title: string; description: string; category: string; version: string }
-export interface CostItem { id: string; title: string; feeEur: number; days: number; group: 'test' | 'document' }
+export interface RuleDefinition { id: string; title: string; description: string; category: string; version: string; knowledgeSource?: KnowledgeProvenance }
+export interface CostItem { id: string; title: string; feeEur: number; days: number; group: 'test' | 'document' | 'preparation'; knowledgeSource?: KnowledgeProvenance }
 export interface Alternative {
   id: 'A' | 'B'; label: string; config: ProductConfig; totalCostEur: number;
   leadTimeDays: number | null; requiredTests: string[]; summary: string;
+  estimatedLeadTimeDays?: number;
 }
 export interface AnalysisResult {
   id: string; ruleVersion: string; config: ProductConfig; findings: Finding[];
   requiredTests: string[]; reusedTests: string[]; documentUpdates: string[];
   reviewCount: number; totalCostEur: number; leadTimeDays: number | null;
   canQuote: boolean; confidence: number; warnings: string[]; alternatives: Alternative[];
-  calculation: { parallelDays: number; documentationDays: number; formula: string };
+  calculation: { parallelDays: number; documentationDays: number; formula: string; preparationDays?: number; estimatedDays?: number };
+  knowledgeContext?: RuntimeKnowledgeContext;
 }
 export interface QuoteResult {
   id: string; channel: Channel; en: string; de: string;
@@ -52,6 +64,19 @@ export interface CaseRecord {
   workflow1PendingReason?: string;
   workflow1EvidenceVersion?: string;
   workflow1Result?: Record<string, unknown>;
+  extractionReview?: string;
+}
+export interface ExtensionCapture {
+  id: string;
+  sessionId: string;
+  text: string;
+  sourceUrl: string;
+  conversationKey?: string;
+  pageKey?: string;
+  createdAt: string;
+  expiresAt: string;
+  status: 'pending' | 'imported';
+  caseId?: string;
 }
 export interface KnowledgeEntry {
   id: string; title: string; content: string; tags: string[]; source: string; updatedAt: string;
@@ -98,4 +123,5 @@ export interface ModelStatus {
 export interface BootstrapData {
   cases: CaseRecord[]; reports: EvidenceReport[]; rules: RuleDefinition[];
   knowledge: KnowledgeEntry[]; costs: CostItem[]; model: ModelStatus; ruleVersion: string;
+  runtimeKnowledge?: RuntimeKnowledgeStatus;
 }

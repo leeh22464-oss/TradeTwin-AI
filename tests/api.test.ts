@@ -12,17 +12,19 @@ import { normalizeUploadedReportDisplay, parseUpload } from '../server/documents
 interface StartedApp {
   server: Server;
   baseUrl: string;
+  db: AppDatabase;
   close: () => Promise<void>;
 }
 
 async function startApp(dataDir: string): Promise<StartedApp> {
-  const app = createApp({ dataDir });
+  const app = createApp({ dataDir, runtimeKnowledge: false });
   const server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as AddressInfo;
   return {
     server,
     baseUrl: `http://127.0.0.1:${address.port}`,
+    db: app.locals.db as AppDatabase,
     close: async () => {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       app.locals.db.close();
@@ -151,6 +153,55 @@ describe('TradeTwin API', () => {
     expect(bootstrap.body.model.mode).toBe('demo');
   });
 
+  it('stores reviewed extension captures locally and exposes text only in the selected preview', async () => {
+    const text = 'Please change the luminaire to 36W and IP44.';
+    const captured = await request(started.baseUrl, '/api/extension/captures', {
+      method: 'POST', headers: { 'content-type': 'application/json', Origin: 'chrome-extension://testid' },
+      body: JSON.stringify({ text, source_url: 'https://message.alibaba.com/chat?buyerId=42', conversation_key: 'buyer-42', page_key: 'tab-7' }),
+    });
+    expect(captured.response.status).toBe(201);
+    expect(captured.body).toMatchObject({ status: 'pending', sourceUrl: 'https://message.alibaba.com/chat?buyerId=42', expiresAt: expect.any(String) });
+    expect(captured.body).not.toHaveProperty('text');
+
+    const list = await request(started.baseUrl, '/api/extension/captures', { headers: { Origin: 'http://localhost:5173' } });
+    expect(list.response.status).toBe(200);
+    expect(list.body.captures).toHaveLength(1);
+    expect(list.body.captures[0]).not.toHaveProperty('text');
+
+    const preview = await request(started.baseUrl, `/api/extension/captures/${captured.body.id}`, { headers: { Origin: 'http://127.0.0.1:5173' } });
+    expect(preview.response.status).toBe(200);
+    expect(preview.body).toMatchObject({ id: captured.body.id, text, status: 'pending' });
+  });
+
+  it('rejects invalid extension capture text, URL, and non-extension origin', async () => {
+    const valid = { text: 'buyer inquiry', source_url: 'https://message.alibaba.com/chat' };
+    const post = (body: unknown, origin = 'chrome-extension://testid') => request(started.baseUrl, '/api/extension/captures', {
+      method: 'POST', headers: { 'content-type': 'application/json', Origin: origin }, body: JSON.stringify(body),
+    });
+    expect((await post({ ...valid, text: ' ' })).response.status).toBe(400);
+    expect((await post({ ...valid, text: 'x'.repeat(20_001) })).response.status).toBe(400);
+    expect((await post({ ...valid, source_url: 'https://example.com/chat' })).response.status).toBe(400);
+    expect((await post(valid, 'https://untrusted.example')).response.status).toBe(403);
+  });
+
+  it('expires pending extension captures and persists imported state with its case id', async () => {
+    const now = new Date().toISOString();
+    const capture = started.db.createCapture({
+      id: 'capture-test', sessionId: 'session-test', text: 'buyer inquiry', sourceUrl: 'https://message.alibaba.com/chat',
+      createdAt: now, expiresAt: new Date(Date.now() + 600_000).toISOString(), status: 'pending',
+    });
+    const imported = started.db.markCaptureImported(capture.id, 'case-test');
+    expect(imported).toMatchObject({ status: 'imported', caseId: 'case-test' });
+    expect(started.db.getCapture(capture.id)).toMatchObject({ status: 'imported', caseId: 'case-test' });
+
+    const expiring = started.db.createCapture({
+      id: 'capture-expiring', sessionId: 'session-expiring', text: 'buyer inquiry', sourceUrl: 'https://message.alibaba.com/chat',
+      createdAt: now, expiresAt: new Date(Date.now() + 1_000).toISOString(), status: 'pending',
+    });
+    expect(started.db.deleteExpiredCaptures(new Date(Date.now() + 2_000).toISOString())).toBe(1);
+    expect(started.db.getCapture(expiring.id)).toBeNull();
+  });
+
   it('persists a case, performs deterministic analysis, and deduplicates analysis audit events', async () => {
     const created = await request(started.baseUrl, '/api/cases', jsonInit('POST', {
       name: '36W IP44 integration case', buyer: 'Test buyer',
@@ -197,7 +248,9 @@ describe('TradeTwin API', () => {
     const chineseAnalysis = await request(started.baseUrl, `/api/cases/${chinese.body.id}/analyze`, jsonInit('POST', {}));
     expect(chineseAnalysis.response.status).toBe(200);
     expect(chineseAnalysis.body.analysis.totalCostEur).toBe(2100);
-    expect(chineseAnalysis.body.analysis.leadTimeDays).toBe(8);
+    expect(chineseAnalysis.body.analysis.calculation.estimatedDays).toBe(8);
+    expect(chineseAnalysis.body.analysis.leadTimeDays).toBeNull();
+    expect(chineseAnalysis.body.analysis.findings.find((f: { itemId: string }) => f.itemId === 'emc').status).toBe('review');
 
     const englishInquiry = 'Please quote 36W / IP44 and do not commit to delivery.';
     const english = await request(started.baseUrl, '/api/cases', jsonInit('POST', {
@@ -212,7 +265,8 @@ describe('TradeTwin API', () => {
     const englishAnalysis = await request(started.baseUrl, `/api/cases/${english.body.id}/analyze`, jsonInit('POST', {}));
     expect(englishAnalysis.response.status).toBe(200);
     expect(englishAnalysis.body.analysis.totalCostEur).toBe(2100);
-    expect(englishAnalysis.body.analysis.leadTimeDays).toBe(8);
+    expect(englishAnalysis.body.analysis.calculation.estimatedDays).toBe(8);
+    expect(englishAnalysis.body.analysis.leadTimeDays).toBeNull();
   });
 
   it('keeps explicit config authoritative over inquiry extraction', async () => {
@@ -374,7 +428,7 @@ describe('TradeTwin API', () => {
       expect(helperLegacy.title).toBe('中文报告');
       expect(normalizeUploadedReportDisplay({ ...legacyReport, title: '工程师自定义标题' }).title).toBe('工程师自定义标题');
 
-      legacyApp = createApp({ dataDir: legacyDir, seed: false });
+      legacyApp = createApp({ dataDir: legacyDir, seed: false, runtimeKnowledge: false });
       legacyServer = createServer(legacyApp);
       await new Promise<void>((resolve, reject) => {
         legacyServer!.once('error', reject);
@@ -519,7 +573,7 @@ describe('TradeTwin API', () => {
     expect(created.response.status).toBe(201);
     const analyzed = await request(started.baseUrl, `/api/cases/${created.body.id}/analyze`, jsonInit('POST', { idempotencyKey: 'evidence-freshness' }));
     expect(analyzed.response.status).toBe(200);
-    expect(analyzed.body.analysis.reviewCount).toBe(0);
+    expect(analyzed.body.analysis.findings.filter((f: { status: string }) => f.status === 'review').map((f: { itemId: string }) => f.itemId)).toEqual(['emc']);
     const quoted = await request(started.baseUrl, `/api/cases/${created.body.id}/quote`, jsonInit('POST', { channel: 'email' }));
     expect(quoted.response.status).toBe(200);
     expect(quoted.body.quote.en).toMatch(/€2,100|2,100/);
@@ -528,7 +582,7 @@ describe('TradeTwin API', () => {
     expect(unverified.response.status).toBe(200);
     const refreshedQuote = await request(started.baseUrl, `/api/cases/${created.body.id}/quote`, jsonInit('POST', { channel: 'email' }));
     expect(refreshedQuote.response.status).toBe(200);
-    expect(refreshedQuote.body.analysis.reviewCount).toBeGreaterThan(0);
+    expect(refreshedQuote.body.analysis.reviewCount).toBeGreaterThan(analyzed.body.analysis.reviewCount);
     expect(refreshedQuote.body.quote.en).toMatch(/pending confirmation|manual review|to be confirmed/i);
     const audit = await request(started.baseUrl, `/api/audit?caseId=${encodeURIComponent(created.body.id)}`);
     expect(audit.body.some((event: any) => event.type === 'evidence.changed')).toBe(true);
@@ -656,7 +710,9 @@ describe('TradeTwin API', () => {
     expect(after.response.status).toBe(200);
     expect(after.body.analysis.id).not.toBe(before.body.analysis.id);
     expect(after.body.analysis.totalCostEur).toBe(0);
-    expect(after.body.analysis.leadTimeDays).toBe(2);
+    expect(after.body.analysis.calculation.estimatedDays).toBe(2);
+    expect(after.body.analysis.leadTimeDays).toBeNull();
+    expect(after.body.analysis.findings.find((f: { itemId: string }) => f.itemId === 'emc').status).toBe('review');
     expect(after.body.analysis.findings.find((finding: any) => finding.itemId === 'temperature')?.status).toBe('reuse');
     expect(after.body.analysis.findings.find((finding: any) => finding.itemId === 'ip')?.status).toBe('reuse');
     expect(after.body.analysis.documentUpdates).toEqual(expect.arrayContaining(['doc', 'label', 'manual']));

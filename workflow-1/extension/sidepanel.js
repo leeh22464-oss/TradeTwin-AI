@@ -3,7 +3,19 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 
 const STATUS_ZH = { INPUT_INCOMPLETE: "信息不全 · 先追问", NEEDS_MANUAL_REVIEW: "需人工确认", READY_FOR_REVIEW: "可审核发送" };
 const LEVEL_ZH = { green: "未发现问题", yellow: "有需要注意的地方", red: "高风险，发送前必须修改" };
-const state = { backend: "http://127.0.0.1:3001/api/workflow1", sessions: {}, result: null, lang: "en", pageKey: null, tabId: null, identity: null, resultPageKey: null };
+const state = { backend: "http://127.0.0.1:3001/api/workflow1", sessions: {}, result: null, lang: "en", pageKey: null, tabId: null, identity: null, resultPageKey: null, sourceUrl: null };
+
+function isAlibabaUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && (parsed.hostname === "alibaba.com" || parsed.hostname.endsWith(".alibaba.com"));
+  } catch { return false; }
+}
+
+function updateCaptureAvailability() {
+  $("#btn-capture").disabled = !state.sourceUrl || !isAlibabaUrl(state.sourceUrl) || !$("#input").value.trim();
+}
+updateCaptureAvailability();
 
 function toast(msg, isError = false) {
   const el = $("#toast");
@@ -161,8 +173,33 @@ $("#btn-read").addEventListener("click", (e) => busy(e.target, async () => {
   captureIdentity(tab, page);
   $("#channel").value = /^https:\/\/([^/]+\.)?alibaba\.com\//i.test(tab.url || "") ? "alibaba_rfq" : "email";
   const notice = `已读取${selection ? "选中文字" : "最近一条可确认的买家消息"}；请核对或编辑，再点击分析`;
+  state.sourceUrl = tab.url;
   $("#source-notice").textContent = notice;
+  updateCaptureAvailability();
   toast(notice);
+}));
+
+$("#input").addEventListener("input", updateCaptureAvailability);
+
+$("#btn-capture").addEventListener("click", (e) => busy(e.target, async () => {
+  const text = $("#input").value.trim();
+  if (!text || !state.sourceUrl || !isAlibabaUrl(state.sourceUrl)) throw new Error("请先从 HTTPS Alibaba 页面读取或确认询盘文本");
+  const { tab, page } = await currentPage();
+  if (tab.url !== state.sourceUrl || (state.identity && page?.conversationKey !== state.identity)) throw new Error("来源页面或买家会话已变化，请重新读取并核对后提交");
+  const backend = new URL(state.backend);
+  if (backend.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(backend.hostname)
+    || !/\/api\/workflow1\/?$/.test(backend.pathname)) throw new Error("提交捕获需要连接本机 TradeTwin Node 服务");
+  const response = await fetch(`${backend.origin}/api/extension/captures`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, source_url: state.sourceUrl, ...(state.identity ? { conversation_key: state.identity } : {}), ...(state.pageKey ? { page_key: state.pageKey } : {}) }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || `提交失败（${response.status}）`);
+  $("#input").value = "";
+  state.sourceUrl = null;
+  updateCaptureAvailability();
+  $("#source-notice").textContent = `已提交到新建询盘待选列表 · ${data.id || "等待导入"}`;
+  toast("已提交；请在新建询盘中预览并导入");
 }));
 
 $("#btn-analyze").addEventListener("click", (e) => busy(e.target, async () => {

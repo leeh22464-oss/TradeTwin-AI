@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Workflow } from 'lucide-react';
+import type { Theme } from '../theme';
 
 export type WorkflowOneResult = {
   session_id?: string;
@@ -13,11 +14,12 @@ type HealthState = 'loading' | 'ready' | 'error';
 
 type SalesWorkspaceProps = {
   sessionId?: string | null;
+  theme?: Theme;
   onRefreshCase: () => void;
   onOpenCase: (caseId: string) => void;
 };
 
-export default function SalesWorkspace({ sessionId, onRefreshCase, onOpenCase }: SalesWorkspaceProps) {
+export default function SalesWorkspace({ sessionId, theme = 'light', onRefreshCase, onOpenCase }: SalesWorkspaceProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const latestSyncRevision = useRef(-1);
   const [health, setHealth] = useState<HealthState>('loading');
@@ -49,6 +51,13 @@ export default function SalesWorkspace({ sessionId, onRefreshCase, onOpenCase }:
   useEffect(() => { void checkHealth(); }, []);
   useEffect(() => { setResult(null); setFrameLoaded(false); setFrameError(false); latestSyncRevision.current = -1; }, [sessionId]);
   useEffect(() => {
+    if (!frameLoaded) return;
+    const document = iframeRef.current?.contentDocument;
+    if (!document) return;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  }, [frameLoaded, theme]);
+  useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
       if (event.origin !== window.location.origin || event.source !== iframeRef.current?.contentWindow) return;
       if (!event.data || typeof event.data !== 'object') return;
@@ -73,9 +82,9 @@ export default function SalesWorkspace({ sessionId, onRefreshCase, onOpenCase }:
   return <div className="sales-workspace-page">
     <section className="sales-workspace-heading">
       <div>
-        <div className="title-meta"><Workflow size={14} /> 工作流一 · 外贸业务</div>
-        <h1>变更理解与报价选项</h1>
-        <p>先理解买家变更，再核验证据与补测代价，最后形成报价选项和英德回复；业务与品质使用同一案件配置。</p>
+        <div className="title-meta"><Workflow size={14} /> 兼容接入 · 外贸业务</div>
+        <h1>询盘工作台兼容桥接</h1>
+        <p>这是旧版独立业务服务的兼容接入页。新的变更理解、证据核验与报价已经合并到同一案件详情中。</p>
       </div>
       <div className={`sales-health sales-health-${health}`} role="status">
         {health === 'loading' ? <Loader2 size={14} className="spin" /> : health === 'ready' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
@@ -90,7 +99,7 @@ export default function SalesWorkspace({ sessionId, onRefreshCase, onOpenCase }:
     {frameError && <div className="sales-frame-error" role="alert"><AlertTriangle size={18} /><div><strong>业务工作台无法载入</strong><span>请确认本地服务已启动，再重试。</span></div><button type="button" className="button button-secondary button-small" onClick={() => { setFrameError(false); setFrameLoaded(false); if (iframeRef.current) iframeRef.current.src = source; void checkHealth(); }}><RefreshCw size={14} /> 重试</button></div>}
     <div className={`sales-frame-shell ${frameLoaded ? 'is-loaded' : ''} ${frameError ? 'has-error' : ''}`}>
       {!frameLoaded && !frameError && <div className="sales-frame-loading"><Loader2 size={20} className="spin" /><span>正在载入工作流一…</span></div>}
-      <iframe ref={iframeRef} className="sales-frame" src={source} title="工作流一：变更理解与报价选项" onLoad={() => setFrameLoaded(true)} onError={() => setFrameError(true)} />
+      <iframe ref={iframeRef} className="sales-frame" src={source} title="询盘工作台兼容桥接" onLoad={() => setFrameLoaded(true)} onError={() => setFrameError(true)} />
     </div>
   </div>;
 }

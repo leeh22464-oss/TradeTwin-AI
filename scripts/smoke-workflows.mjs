@@ -50,37 +50,35 @@ async function main() {
     channel: 'email', source: 'workflow-smoke', languages: ['en', 'de'],
   });
   versions(first, envelope);
-  const requested = first.quote_options.find((option) => option.kind === 'requested');
-  assert.ok(requested, 'The requested configuration must be quoted');
-  assert.equal(requested.estimated_cost_eur, 2100);
-  assert.equal(requested.estimated_days, 8);
-  const withinCoverage = first.quote_options.find((option) => option.kind === 'within_coverage');
-  assert.ok(withinCoverage, 'Find the coverage option by kind; its letter is not fixed');
+  assert.equal(first.mode, 'pending_check');
+  assert.equal(first.status, 'NEEDS_MANUAL_REVIEW');
+  assert.deepEqual(first.quote_options, [], 'Unreviewed evidence must not be presented as a quote');
+  assert.deepEqual(first.candidate_options.map((option) => option.config.power_w), [36, 30]);
+  assert.ok(first.coverage_findings.some((finding) => finding.item_key === 'emc_electrical' && finding.status === 'MANUAL_REVIEW'));
+  assert.ok(first.coverage_findings.some((finding) => finding.item_key === 'thermal_rise' && finding.status === 'NEEDS_RETEST'));
+  assert.ok(first.coverage_findings.some((finding) => finding.item_key === 'ingress_protection' && finding.status === 'NEEDS_RETEST'));
   const initialSync = await json('/api/workflow1/sync', first);
   assert.equal(initialSync.case.workflow1LastRunId, first.run_id);
-  assert.equal(initialSync.case.workflow1QuoteReady, true);
+  assert.equal(initialSync.case.workflow1QuoteReady, false);
+  assert.equal(initialSync.case.requestedConfig.powerW, 36);
 
   const second = await json('/api/workflow1/instruct', {
     session_id: first.session_id,
-    instruction: `选择方案 ${withinCoverage.option_id}，暂不承诺具体交期，等实验室排期确认。`,
+    instruction: '改成 30W / IP44；暂不承诺具体交期，等实验室和 EMC 复核确认。',
   });
   versions(second, envelope);
-  assert.equal(second.selected_option_id, withinCoverage.option_id);
-  assert.equal(second.quote_options[0].config.power_w, 30);
-  assert.equal(second.quote_options[0].config.ip_rating, 'IP44');
-  assert.equal(second.quote_options[0].estimated_cost_eur, 900);
-  assert.equal(second.quote_options[0].estimated_days, 7);
-  assert.equal(second.constraints.hide_delivery_date, true);
-  for (const language of ['en', 'de']) {
-    assert.ok(second.replies[language]?.body, `${language} reply must be generated`);
-    assert.doesNotMatch(second.replies[language].body, /working days|Arbeitstage/i);
-  }
+  assert.equal(second.mode, 'pending_check');
+  assert.deepEqual(second.quote_options, []);
+  assert.equal(second.selected_option_id, null);
+  assert.equal(second.change_order.find((row) => row.field === 'power_w').to, 30);
+  assert.equal(second.change_order.find((row) => row.field === 'ip_rating').to, 'IP44');
+  assert.ok(second.coverage_findings.some((finding) => finding.item_key === 'emc_electrical' && finding.status === 'MANUAL_REVIEW'));
   const latest = await json('/api/workflow1/sync', second);
   assert.equal(latest.case.workflow1LastRunId, second.run_id);
-  assert.equal(latest.case.workflow1QuoteReady, true);
+  assert.equal(latest.case.workflow1QuoteReady, false);
   assert.equal(latest.case.requestedConfig.powerW, 30);
   assert.equal(latest.case.analysis.totalCostEur, 900);
-  assert.equal(latest.case.analysis.leadTimeDays, 7);
+  assert.equal(latest.case.analysis.leadTimeDays, null);
   assert.equal(latest.case.workflow1Result.scope.evidence_version, envelope.evidence_version);
   const auditPath = `/api/audit?caseId=${encodeURIComponent(first.session_id)}`;
   const eventsBefore = await json(auditPath);
@@ -98,59 +96,8 @@ async function main() {
   assert.equal(eventsAfter.length, eventsBefore.length, 'Historical sync replays must not create audit events');
   const reopened = await json(`/api/cases/${encodeURIComponent(first.session_id)}`);
   assert.equal(reopened.workflow1LastRunId, second.run_id);
-  assert.equal(reopened.workflow1Result.constraints.hide_delivery_date, true);
-  assert.equal(reopened.workflow1QuoteReady, true);
-
-  // Natural-language scope confirmations must survive Python extraction and
-  // Node synchronization with the same canonical supported configuration.
-  const baseline = await json('/api/workflow1/analyze', {
-    text: 'Please quote 36W IP44 with the same DRV-A driver, same original material / Germany',
-    channel: 'email', source: 'workflow-smoke', languages: ['en', 'de'],
-  });
-  versions(baseline, envelope);
-  assert.ok(baseline.quote_options.length);
-  const baselineSync = await json('/api/workflow1/sync', baseline);
-
-  const unsupported = await json('/api/workflow1/analyze', {
-    text: 'Please quote 36W IP44 with the same DRV-A driver; material PVC; target market US',
-    channel: 'email', source: 'workflow-smoke', languages: ['en', 'de'],
-  });
-  assert.equal(unsupported.mode, 'pending_check');
-  assert.deepEqual(unsupported.quote_options, []);
-  const unsupportedSync = await json('/api/workflow1/sync', unsupported);
-  assert.equal(unsupportedSync.case.workflow1QuoteReady, false);
-  assert.equal(unsupportedSync.case.requestedConfig.material, 'PVC');
-  assert.equal(unsupportedSync.case.requestedConfig.market, 'US');
-  const materialReturned = await json('/api/workflow1/instruct', {
-    session_id: unsupported.session_id, instruction: 'Use the original material again.',
-  });
-  assert.equal(materialReturned.mode, 'pending_check');
-  assert.deepEqual(materialReturned.quote_options, []);
-  const materialSync = await json('/api/workflow1/sync', materialReturned);
-  assert.equal(materialSync.case.workflow1QuoteReady, false, 'US market must keep the case pending');
-  assert.equal(materialSync.case.requestedConfig.market, 'US');
-  const returned = await json('/api/workflow1/instruct', {
-    session_id: unsupported.session_id, instruction: 'Return to the Germany market only.',
-  });
-  versions(returned, envelope);
-  assert.ok(returned.quote_options.length);
-  const returnedSync = await json('/api/workflow1/sync', returned);
-  assert.deepEqual([baselineSync.case.workflow1QuoteReady, returnedSync.case.workflow1QuoteReady],
-    [true, true], 'Initial baseline wording and explicit PVC/US return must both be ready after Node sync');
-  for (const result of [baseline, materialReturned, returned]) {
-    assert.equal(result.scope.requested_material, 'original-material');
-    const row = result.change_order.find((row) => row.field === 'material');
-    assert.equal(row.to, 'original-material');
-    assert.match(row.source_quote, /original material/);
-  }
-  for (const synced of [baselineSync, returnedSync]) {
-    assert.equal(synced.case.requestedConfig.material, 'original-material');
-    assert.equal(synced.case.requestedConfig.market, 'DE');
-    const saved = await json(`/api/cases/${encodeURIComponent(synced.case.id)}`);
-    assert.equal(saved.workflow1QuoteReady, true);
-  }
-  console.log('PASS: Node → Python → Node HTTP; €2,100 / 8 days → €900 / 7 days; delivery hidden; historical sync replay and source versions preserved.');
-  console.log('PASS: Initial original-material/Germany and PVC/US → explicit baseline return are ready after sync; partial return stays pending.');
+  assert.equal(reopened.workflow1QuoteReady, false);
+  console.log('PASS: Node → Python → Node HTTP; 36W/IP44 → 30W/IP44; EMC remains manual review, no premature quote or delivery promise; historical sync replay and source versions preserved.');
   console.log(`Synthetic smoke case: ${first.session_id}`);
 }
 

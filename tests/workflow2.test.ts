@@ -55,28 +55,28 @@ describe('workflow2 HTTP contract', () => {
     expect(second.body.evidence_version).not.toBe(first.body.evidence_version);
   });
 
-  it('evaluates 36W/IP44 as 2100 EUR and 8 days with localized retest names', async () => {
+  it('keeps 36W/IP44 costs known while holding the total estimate for EMC review', async () => {
     const result = await request(started, '/api/workflow2/evaluate', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(validRequest([{ config_id: 'A', power_w: 36, ip_rating: 'IP44', driver: 'DRV-A' }])),
     });
     expect(result.status).toBe(200);
     expect(result.body.request_id).toBe('WF1-test-001');
-    expect(result.body.results[0]).toMatchObject({ config_id: 'A', estimated_cost_eur: 2100, estimated_days: 8, synthetic: true, human_confirmed: false });
+    expect(result.body.results[0]).toMatchObject({ config_id: 'A', estimated_cost_eur: null, estimated_days: null, known_cost_eur: 2100, manual_review_required: true, synthetic: true, human_confirmed: false });
     expect(result.body.results[0].retest_items).toEqual(expect.arrayContaining([
       expect.objectContaining({ test_key: 'thermal_rise', name: expect.objectContaining({ zh: expect.any(String), en: expect.any(String), de: expect.any(String) }) }),
       expect.objectContaining({ test_key: 'ingress_protection' }),
     ]));
-    expect(result.body.results[0].findings.find((finding: any) => finding.item_key === 'emc_electrical').status).toBe('COVERED');
+    expect(result.body.results[0].findings.find((finding: any) => finding.item_key === 'emc_electrical').status).toBe('MANUAL_REVIEW');
   });
 
-  it('evaluates 30W/IP44 as the IP-only 900 EUR and 7 day option', async () => {
+  it('keeps the 30W/IP44 IP-test cost known while EMC remains under review', async () => {
     const result = await request(started, '/api/workflow2/evaluate', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(validRequest([{ config_id: 'C', power_w: 30, ip_rating: 'IP44', driver: 'DRV-A' }])),
     });
     expect(result.status).toBe(200);
-    expect(result.body.results[0]).toMatchObject({ estimated_cost_eur: 900, estimated_days: 7 });
+    expect(result.body.results[0]).toMatchObject({ estimated_cost_eur: null, estimated_days: null, known_cost_eur: 900, manual_review_required: true });
     expect(result.body.results[0].retest_items.map((item: any) => item.test_key)).toEqual(['ingress_protection']);
   });
 

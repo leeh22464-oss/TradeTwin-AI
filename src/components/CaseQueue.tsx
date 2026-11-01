@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type { CaseRecord } from '../../shared/types';
 import {
-  filterCases, formatConfigChange, formatQueueDate, getConfigChanges, getQueueCommercial, getQueueStatus,
+  filterCases, formatConfigChange, formatQueueDate, getConfigChanges, getQueueCommercial, getQueueOverview, getQueueStatus,
   paginate, sortCases, type QueueFilter, type QueueSort,
 } from '../queueUtils';
 
@@ -148,9 +148,29 @@ export default function CaseQueue({ cases, state, onStateChange, onOpenCase, onN
   const showEmptyQueue = cases.length === 0;
   const columns = state.columns;
   const visibleColumnCount = 2 + Number(columns.change) + Number(columns.verification) + Number(columns.commercial) + Number(columns.updated);
+  const overview = useMemo(() => getQueueOverview(cases), [cases]);
+  const attentionCount = overview.attention;
+  const attentionCases = cases.filter((caseRecord) => {
+    const status = getQueueStatus(caseRecord);
+    return status.key !== 'ready';
+  }).slice(0, 3);
+  const nextLabel = overview.pendingAnalysis > 0 ? '先完成变更理解' : overview.needsReview > 0 ? '先补齐人工核验' : overview.withRetest > 0 ? '先确认补测代价' : '可以发送报价草稿';
 
   return <div className="queue-page">
     <section className="queue-heading"><div><h1>案件队列</h1><p>搜索客户变更，按真实推演状态进入单案工作区。筛选条件可以叠加。</p></div><div className="queue-heading-actions"><button type="button" className="button button-secondary button-small" onClick={onOpenEvidence}><FolderOpen size={15} /> 进入证据库</button><button type="button" className="button button-primary button-small" onClick={onNewCase}><Plus size={15} /> 新建询盘</button></div></section>
+    <section className="queue-dashboard" aria-label="工作台概览">
+      <div className="queue-dashboard-main">
+        <div className="dashboard-kicker"><span className="dashboard-signal" /> 本地合规报价工作台 <span className="dashboard-date">实时状态</span></div>
+        <div className="dashboard-hero-row"><div><span className="dashboard-label">待处理询盘</span><strong className="dashboard-hero-number">{attentionCount}</strong><p>{attentionCount > 0 ? `其中 ${overview.needsReview} 个需要人工核验，${overview.withRetest} 个包含补测。` : '当前没有阻塞中的询盘，可以继续处理新变更。'}</p></div><div className="dashboard-hero-note"><span>下一步</span><strong>{nextLabel}</strong><small>所有费用、排期和回复均来自当前案件记录。</small></div></div>
+      </div>
+      <div className="dashboard-stat-grid" aria-label="案件状态统计">
+        <div className="dashboard-stat"><span>全部案件</span><strong>{overview.total}</strong><small>已进入工作台</small></div>
+        <div className="dashboard-stat dashboard-stat-amber"><span>待人工核验</span><strong>{overview.needsReview}</strong><small>证据或承诺风险</small></div>
+        <div className="dashboard-stat dashboard-stat-red"><span>含补测</span><strong>{overview.withRetest}</strong><small>需要确认代价</small></div>
+        <div className="dashboard-stat dashboard-stat-green"><span>已生成回复</span><strong>{overview.replyDrafts}</strong><small>等待人工发送</small></div>
+      </div>
+      <aside className="dashboard-side-panel"><div className="dashboard-side-head"><span>推进面板</span><span className="dashboard-side-count">{overview.analysed}/{overview.total}</span></div><div className="dashboard-progress"><span style={{ width: `${overview.total ? Math.round((overview.analysed / overview.total) * 100) : 0}%` }} /></div><p>案件已有规则推演结果</p><div className="dashboard-steps"><div className={overview.pendingAnalysis === 0 ? 'is-done' : 'is-current'}><span>01</span><div><strong>理解变更</strong><small>{overview.pendingAnalysis ? `${overview.pendingAnalysis} 个待处理` : '已完成'}</small></div></div><div className={overview.needsReview === 0 ? 'is-done' : 'is-current'}><span>02</span><div><strong>核验证据</strong><small>{overview.needsReview ? `${overview.needsReview} 个需确认` : '已完成'}</small></div></div><div className={overview.replyDrafts > 0 ? 'is-done' : ''}><span>03</span><div><strong>回传报价</strong><small>{overview.replyDrafts ? `${overview.replyDrafts} 个草稿待发送` : '等待报价草稿'}</small></div></div></div>{attentionCases.length > 0 && <div className="dashboard-next-list"><span>优先处理</span>{attentionCases.map((caseRecord) => <button type="button" key={caseRecord.id} onClick={() => onOpenCase(caseRecord.id)}><span>{caseRecord.name}</span><small>{getQueueStatus(caseRecord).label}</small><ChevronRight size={14} /></button>)}</div>}</aside>
+    </section>
     <section className="queue-toolbar" aria-label="案件筛选与排序">
       <label className="queue-search"><Search size={17} aria-hidden="true" /><span className="sr-only">搜索案件</span><input value={state.query} onChange={(event) => onStateChange((current) => ({ ...current, query: event.target.value, page: 1 }))} placeholder="搜索客户、案件、型号或买家原话" /></label>
       <div className="queue-toolbar-actions"><label className="queue-select"><span>排序</span><select value={state.sort} onChange={(event) => onStateChange((current) => ({ ...current, sort: event.target.value as QueueSort, page: 1 }))}>{SORTS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><label className="queue-select"><span>每页</span><select value={state.pageSize} onChange={(event) => onStateChange((current) => ({ ...current, pageSize: Number(event.target.value) as 10 | 20, page: 1 }))}><option value="10">10</option><option value="20">20</option></select></label></div>

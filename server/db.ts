@@ -9,6 +9,7 @@ import type {
   ChatMessage,
   CostItem,
   EvidenceReport,
+  ExtensionCapture,
   KnowledgeEntry,
   ModelStatus,
   RuleDefinition,
@@ -119,6 +120,21 @@ export class AppDatabase {
         created_at TEXT NOT NULL,
         PRIMARY KEY(case_id, endpoint, fingerprint)
       );
+      CREATE TABLE IF NOT EXISTS runtime_report_snapshots (
+        id TEXT PRIMARY KEY,
+        managed_json TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS extension_captures (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        data_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        case_id TEXT
+      );
+      CREATE INDEX IF NOT EXISTS extension_captures_pending_expiry
+        ON extension_captures(status, expires_at);
     `);
   }
 
@@ -169,6 +185,58 @@ export class AppDatabase {
     return item;
   }
 
+  createCapture(capture: ExtensionCapture): ExtensionCapture {
+    this.sqlite.prepare(`
+      INSERT INTO extension_captures(id, session_id, data_json, created_at, expires_at, status, case_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(capture.id, capture.sessionId, json(capture), capture.createdAt, capture.expiresAt, capture.status, capture.caseId ?? null);
+    return capture;
+  }
+
+  getCapture(id: string, nowIso = now()): ExtensionCapture | null {
+    this.deleteExpiredCaptures(nowIso);
+    const row = this.sqlite.prepare('SELECT data_json FROM extension_captures WHERE id = ?').get(id) as Row | undefined;
+    return rowData<ExtensionCapture | null>(row, null);
+  }
+
+  listPendingCaptures(nowIso = now()): ExtensionCapture[] {
+    this.deleteExpiredCaptures(nowIso);
+    const rows = this.sqlite.prepare("SELECT data_json FROM extension_captures WHERE status = 'pending' ORDER BY created_at DESC").all() as Row[];
+    return rows.map((row) => rowData<ExtensionCapture | null>(row, null)).filter((capture): capture is ExtensionCapture => !!capture);
+  }
+
+  markCaptureImported(id: string, caseId: string, nowIso = now()): ExtensionCapture | null {
+    this.sqlite.exec('BEGIN IMMEDIATE');
+    try {
+      this.deleteExpiredCaptures(nowIso);
+      const row = this.sqlite.prepare('SELECT data_json FROM extension_captures WHERE id = ?').get(id) as Row | undefined;
+      const current = rowData<ExtensionCapture | null>(row, null);
+      if (!current) {
+        this.sqlite.exec('COMMIT');
+        return null;
+      }
+      if (current.status === 'imported') {
+        this.sqlite.exec('COMMIT');
+        return current.caseId === caseId ? current : null;
+      }
+      const updated: ExtensionCapture = { ...current, status: 'imported', caseId };
+      this.sqlite.prepare(`
+        UPDATE extension_captures SET data_json = ?, status = 'imported', case_id = ?
+        WHERE id = ? AND status = 'pending' AND expires_at > ?
+      `).run(json(updated), caseId, id, nowIso);
+      this.sqlite.exec('COMMIT');
+      return this.getCapture(id, nowIso);
+    } catch (error) {
+      try { this.sqlite.exec('ROLLBACK'); } catch { /* Preserve the original database error. */ }
+      throw error;
+    }
+  }
+
+  deleteExpiredCaptures(nowIso = now()): number {
+    const result = this.sqlite.prepare('DELETE FROM extension_captures WHERE expires_at <= ?').run(nowIso);
+    return Number(result.changes);
+  }
+
   getReport(id: string): StoredReport | null {
     const row = this.sqlite.prepare('SELECT data_json, source_path FROM reports WHERE id = ?').get(id) as Row | undefined;
     if (!row) return null;
@@ -182,6 +250,34 @@ export class AppDatabase {
       const report = rowData<EvidenceReport | null>(row, null);
       return report ? normalizeUploadedReportDisplay(report) : null;
     }).filter((item): item is EvidenceReport => !!item);
+  }
+
+  /** Refresh managed demo evidence without overwriting an engineer's edits. */
+  syncRuntimeReports(reports: EvidenceReport[]): string[] {
+    const conflicts: string[] = [];
+    this.sqlite.exec('BEGIN IMMEDIATE');
+    try {
+      for (const report of reports) {
+        const current = this.getReport(report.id);
+        const snapshot = this.sqlite.prepare('SELECT managed_json FROM runtime_report_snapshots WHERE id = ?').get(report.id) as { managed_json: string } | undefined;
+        const nextJson = json(report);
+        const currentJson = current ? json(current.report) : null;
+        const canRefresh = !current || currentJson === nextJson || currentJson === snapshot?.managed_json;
+        if (canRefresh) {
+          if (currentJson !== nextJson || !current?.sourcePath) {
+            this.saveReport(report, report.knowledgeSource ? resolve(report.knowledgeSource.path) : null);
+          }
+          if (snapshot?.managed_json !== nextJson) this.sqlite.prepare('INSERT INTO runtime_report_snapshots(id, managed_json) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET managed_json = excluded.managed_json').run(report.id, nextJson);
+        } else if (snapshot && snapshot.managed_json !== nextJson) {
+          conflicts.push(report.id);
+        }
+      }
+      this.sqlite.exec('COMMIT');
+      return conflicts;
+    } catch (error) {
+      this.sqlite.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   saveReport(report: EvidenceReport, sourcePath: string | null): EvidenceReport {

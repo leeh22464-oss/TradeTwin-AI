@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type {
   KnowledgeEntry, KnowledgeIndex, KnowledgeSource, ResearchCitation, ResearchResult,
+  RuntimeKnowledgeStatus,
 } from '../../shared/types';
 
 type Notice = { kind: 'success' | 'error' | 'info'; message: string };
@@ -12,6 +13,7 @@ type KnowledgeKind = 'all' | 'public_source' | 'checklist' | 'glossary' | 'guida
 
 interface KnowledgeWorkspaceProps {
   entries: KnowledgeEntry[];
+  runtimeKnowledge?: RuntimeKnowledgeStatus;
   onRefresh: () => void | Promise<void>;
   onNotice: (notice: Notice) => void;
 }
@@ -222,7 +224,21 @@ function ResearchResultView({ result, sources, indexedOn }: { result: ResearchRe
   </section>;
 }
 
-export default function KnowledgeWorkspace({ entries, onRefresh, onNotice }: KnowledgeWorkspaceProps) {
+function RuntimeKnowledgePanel({ runtimeKnowledge }: { runtimeKnowledge?: RuntimeKnowledgeStatus }) {
+  if (!runtimeKnowledge) return null;
+  const statusLabel = runtimeKnowledge.available ? '已载入' : '需确认';
+  return <details className="knowledge-runtime-panel">
+    <summary className="knowledge-section-head knowledge-runtime-summary"><div><h2>实际推演数据来源</h2><p>覆盖判断与报价规则使用的运行时知识配置，可展开核对版本、指纹与来源文件。</p></div><span className={`knowledge-runtime-status ${runtimeKnowledge.available ? 'is-available' : 'is-review'}`}>{statusLabel} · {runtimeKnowledge.sources.length} 个来源 <ChevronDown size={15} aria-hidden="true" /></span></summary>
+    <div className="knowledge-runtime-body">
+      <dl className="knowledge-runtime-meta"><div><dt>Profile</dt><dd>{runtimeKnowledge.profileId}</dd></div><div><dt>版本</dt><dd>{runtimeKnowledge.version}</dd></div><div><dt>来源指纹</dt><dd title={runtimeKnowledge.fingerprint}>{runtimeKnowledge.fingerprint.slice(0, 16)}…</dd></div></dl>
+      <p className="knowledge-runtime-note">口径提示：驱动未变时 EMC 只标记待人工复核；更换驱动增加 3 天打样，之后测试并行、文件更新串行。以上仍需实验室或认证工程师确认。</p>
+      {runtimeKnowledge.warnings.length > 0 && <div className="knowledge-warning"><ShieldAlert size={15} /><span>{runtimeKnowledge.warnings.join('；')}</span></div>}
+      <ul className="knowledge-runtime-sources">{runtimeKnowledge.sources.map((source, index) => <li key={`${source.path}-${index}`}><div><strong>{source.path}</strong><span>{[source.documentId && `文档 ${source.documentId}`, source.ruleId && `规则 ${source.ruleId}`, source.page !== undefined && `第 ${source.page} 页`, source.sha256 && `指纹 ${source.sha256.slice(0, 12)}…`].filter(Boolean).join(' · ') || '未提供细分定位'}</span></div><a href={`/api/runtime/sources/${index}`} target="_blank" rel="noreferrer">打开来源记录 <ExternalLink size={12} /></a></li>)}</ul>
+    </div>
+  </details>;
+}
+
+export default function KnowledgeWorkspace({ entries, runtimeKnowledge, onRefresh, onNotice }: KnowledgeWorkspaceProps) {
   const [index, setIndex] = useState<KnowledgeIndex | null>(null);
   const [indexLoading, setIndexLoading] = useState(true);
   const [indexError, setIndexError] = useState<string | null>(null);
@@ -353,6 +369,7 @@ export default function KnowledgeWorkspace({ entries, onRefresh, onNotice }: Kno
       </section>
       {index.package.warnings.length > 0 && <div className="knowledge-warning"><ShieldAlert size={15} /><span>{index.package.warnings.join('；')}</span></div>}
       <div className="knowledge-boundary"><FileCheck2 size={16} /><span>已导入的是来源索引、规则卡、检查清单与术语包；缺失文件、未知参数和未确认范围不会自动放行。</span></div>
+      {runtimeKnowledge && <RuntimeKnowledgePanel runtimeKnowledge={runtimeKnowledge} />}
     </>}
 
     <section className="research-panel"><div className="research-panel-head"><div><h2>按索引核查</h2><p>先用本地结构化索引定位线索；配置服务端密钥后才会显示真实联网核查。</p></div><span className={`research-config ${researchEnabled ? 'is-configured' : ''}`}><span className="status-dot" />{researchEnabled ? `已配置 · ${index?.research.model || '官方模型'}` : configured ? '联网核查未启用' : '未配置 OPENAI_API_KEY'}</span></div><div className="research-config-note"><ShieldAlert size={14} /><span>{index?.research.message || '未配置时只返回本地索引线索，不会在浏览器请求密钥。请在项目 .env 填 OPENAI_API_KEY。'}</span></div><label className="research-query"><span>问题</span><textarea value={researchQuery} maxLength={2000} disabled={researchBusy} onChange={(event) => setResearchQuery(event.target.value)} placeholder="例如：30W / IP44 的防护补测能否沿用原 IP20 报告？" rows={3} /><small>{researchQuery.length} / 2000</small></label><details className="research-source-picker" open={sourceListOpen} onToggle={(event) => setSourceListOpen((event.currentTarget as HTMLDetailsElement).open)}><summary><span><Globe2 size={15} />核查范围 · 已选 {selectedSourceIds.length} / {sources.length} 个官方入口</span><ChevronDown size={15} /></summary><div className="research-source-picker-body"><div className="research-source-actions"><span>联网搜索会受限于选中的官方域名范围，不代表已读取法规全文。</span><div><button type="button" onClick={() => setSelectedSourceIds(sources.map((source) => source.sourceId))} disabled={researchBusy || allSelected}>全选</button><button type="button" onClick={() => setSelectedSourceIds([])} disabled={researchBusy || !selectedSourceIds.length}>清空</button></div></div>{sources.map((source) => <label className="research-source-option" key={source.sourceId}><input type="checkbox" disabled={researchBusy} checked={selectedSourceIds.includes(source.sourceId)} onChange={(event) => setSelectedSourceIds((current) => event.target.checked ? [...current, source.sourceId] : current.filter((sourceId) => sourceId !== source.sourceId))} /><span><strong>{source.identifier} · {source.title}</strong><small>{source.publisher} · {source.topic}</small></span></label>)}</div></details><div className="research-submit-row"><button className="button button-primary" onClick={() => void research()} disabled={researchBusy || !researchQuery.trim() || !selectedSourceIds.length || !sources.length}>{researchBusy ? <Loader2 size={15} className="spin" /> : <Search size={15} />}{researchBusy ? '正在核查…' : researchButtonLabel}</button>{!selectedSourceIds.length && <span className="research-validation">至少选择 1 个来源</span>}{!researchQuery.trim() && <span className="research-validation">请输入问题后提交</span>}</div>{researchError && <div className="research-error" role="alert"><ShieldAlert size={15} /><span>{researchError}</span><button className="button button-secondary button-small" onClick={() => void research()} disabled={researchBusy}>重试</button></div>}</section>
