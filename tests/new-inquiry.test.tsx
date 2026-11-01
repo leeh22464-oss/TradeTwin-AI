@@ -50,13 +50,26 @@ function setup(fetcher = vi.fn()) {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('new inquiry channel intake', () => {
-  it('shows mailbox status and settings in the default email channel', () => {
+  it('keeps mailbox configuration out of the default email intake view', () => {
     const { render } = setup();
     const tree = render();
     const text = tree.map((element) => typeof element.props.children === 'string' ? element.props.children : '').join(' ');
     expect(text).toContain('邮箱');
     expect(text).toContain('邮箱设置');
     expect(text).toContain('收件箱');
+    expect(tree.some((element) => element.props.className?.split(' ').includes('mail-settings-form'))).toBe(false);
+  });
+
+  it('opens mailbox configuration as a secondary screen on request', () => {
+    const { render } = setup();
+    let tree = render();
+    const settings = tree.find((element) => element.type === 'button' && hasText(element.props.children, '邮箱设置'));
+    expect(settings).toBeDefined();
+    settings!.props.onClick();
+    tree = render();
+    expect(tree.some((element) => element.props.className?.split(' ').includes('mail-settings-screen'))).toBe(true);
+    expect(tree.some((element) => element.props.className?.split(' ').includes('mail-settings-form'))).toBe(true);
+    expect(tree.some((element) => element.props.id === 'email-intake-panel')).toBe(false);
   });
 
   it('switches the source panel when the browser plugin channel is selected', () => {
@@ -181,7 +194,7 @@ describe('new inquiry channel intake', () => {
     effects.at(-1)!(); await settle();
     tree = render();
     expect(fetcher.mock.calls.map(([url]) => url)).toContain('/api/extension/captures');
-    expect(hasText(tree, '暂无待选询盘')).toBe(true);
+    expect(hasText(tree, '暂无待选内容')).toBe(true);
   });
 
   it('previews and imports the selected extension capture', async () => {

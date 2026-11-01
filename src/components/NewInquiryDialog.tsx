@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Plus, RefreshCw, Settings2, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, RefreshCw, Settings2, X } from 'lucide-react';
 import type { CaseRecord, Channel } from '../../shared/types';
 import { useDialogAccessibility } from './dialogAccessibility';
 
@@ -77,7 +77,7 @@ export default function NewInquiryDialog({ onClose, onCreate, onOpenCase, busy }
   const [mailSettings, setMailSettings] = useState<MailSettings | null>(null);
   const [mailStatus, setMailStatus] = useState<MailStatus | null>(null);
   const [mailFormState, setMailFormState] = useState<MailForm>(emptyMailForm);
-  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mailLoading, setMailLoading] = useState(true);
   const [mailBusy, setMailBusy] = useState(false);
   const [threads, setThreads] = useState<MailThread[]>([]);
@@ -105,12 +105,10 @@ export default function NewInquiryDialog({ onClose, onCreate, onOpenCase, busy }
       setMailSettings(response.settings);
       setMailStatus(response.status);
       setMailFormState(mailForm(response.settings));
-      setSettingsOpen(!response.settings.has_password || response.status.mode !== 'imap');
       setNotice(null);
     } catch (error) {
       setMailStatus(null);
       setMailSettings(null);
-      setSettingsOpen(true);
       setNotice({ kind: 'error', message: error instanceof Error ? error.message : '邮箱服务不可用，可手动填写询盘' });
     } finally { setMailLoading(false); }
   };
@@ -240,18 +238,12 @@ export default function NewInquiryDialog({ onClose, onCreate, onOpenCase, busy }
   return createPortal(<div className="dialog-backdrop" data-dialog-portal onClick={onClose}>
     <section ref={dialogRef} className="new-case-dialog new-inquiry-dialog" role="dialog" aria-modal="true" aria-labelledby="new-case-dialog-title" tabIndex={-1} onClick={(event) => event.stopPropagation()}>
       <div className="dialog-head">
-        <div><h2 id="new-case-dialog-title">新建询盘</h2><p>选择实际入口，预览来源内容后再导入；也可手动录入。</p></div>
+        <div><h2 id="new-case-dialog-title">{settingsOpen ? '邮箱接入设置' : '新建询盘'}</h2><p>{settingsOpen ? '连接收件箱后即可选择并导入买家邮件。' : '选择询盘来源，预览后导入案件。'}</p></div>
+        {settingsOpen && <button type="button" className="button button-secondary button-small" onClick={() => setSettingsOpen(false)}><ArrowLeft size={14} /> 返回入口</button>}
         <button className="icon-button" aria-label="关闭新建询盘" title="关闭新建询盘" onClick={onClose} data-dialog-initial-focus><X size={18} /></button>
       </div>
-      <div className="new-inquiry-channel" role="group" aria-label="选择询盘入口">
-        <button type="button" aria-pressed={channel === 'email'} className={channel === 'email' ? 'active' : ''} onClick={() => { setChannel('email'); setManualMode(false); }}><span>邮箱</span></button>
-        <button type="button" aria-pressed={channel === 'rfq'} className={channel === 'rfq' ? 'active' : ''} onClick={() => { setChannel('rfq'); setManualMode(false); }}><span>浏览器插件</span></button>
-      </div>
-      {channel === 'email' ? <section id="email-intake-panel" className="intake-panel" aria-labelledby="email-intake-title">
-        <div className="intake-panel-heading"><div><h3 id="email-intake-title">邮箱收件箱</h3><p>{mailLoading ? '正在检查邮箱连接…' : mailStatus?.mode === 'imap' ? `已连接 · ${mailStatus.address || mailSettings?.user || '邮箱账号'}` : '未连接邮箱，完成 IMAP 设置后同步邮件'}</p></div>
-          <div className="intake-heading-actions"><button type="button" className="button button-secondary button-small" onClick={() => setSettingsOpen((value) => !value)}><Settings2 size={14} /> <span>邮箱设置</span></button><button type="button" className="button button-secondary button-small" onClick={() => void refreshInbox()} disabled={mailStatus?.mode !== 'imap' || inboxLoading || mailLoading}><RefreshCw size={14} className={inboxLoading ? 'spin' : ''} /> <span>刷新收件箱</span></button></div>
-        </div>
-        {settingsOpen && <div className="mail-settings-form">
+      {settingsOpen ? <section className="mail-settings-screen" aria-label="邮箱接入设置">
+        <div className="mail-settings-form">
           <label className="field"><span>邮箱服务商</span><select value={selectedPreset} onChange={(event) => updateProvider(event.target.value)}><option value="">自定义 IMAP</option><option value="qq">QQ 邮箱</option><option value="163">163 邮箱</option><option value="126">126 邮箱</option><option value="exmail">腾讯企业邮</option><option value="aliyun">阿里企业邮</option><option value="gmail">Gmail</option></select></label>
           <p className="mail-provider-help">{PRESETS[selectedPreset]?.help || '填写邮箱服务商提供的 IMAP 地址和端口。密码只用于本机邮箱连接设置。'}</p>
           <div className="mail-settings-grid">
@@ -263,19 +255,28 @@ export default function NewInquiryDialog({ onClose, onCreate, onOpenCase, busy }
             <Field label="邮件落款（可选）" value={mailFormState.signature} onChange={(value) => patchMailForm('signature', value)} placeholder="公司名称 / 联系方式" />
           </div>
           <div className="intake-actions"><button type="button" className="button button-secondary button-small" onClick={() => void sendMailSettings(true)} disabled={mailBusy || mailLoading}><RefreshCw size={14} /> <span>测试连接</span></button><button type="button" className="button button-primary button-small" onClick={() => void sendMailSettings(false)} disabled={mailBusy || mailLoading}><span>{mailBusy ? '处理中…' : '保存邮箱设置'}</span></button></div>
-        </div>}
-        {mailStatus?.mode === 'imap' && !settingsOpen ? <div className="mail-thread-content">
+        </div>
+      </section> : <>
+      {!manualMode && <div className="new-inquiry-channel" role="group" aria-label="选择询盘入口">
+        <button type="button" aria-pressed={channel === 'email'} className={channel === 'email' ? 'active' : ''} onClick={() => { setChannel('email'); setManualMode(false); }}><span>邮箱</span></button>
+        <button type="button" aria-pressed={channel === 'rfq'} className={channel === 'rfq' ? 'active' : ''} onClick={() => { setChannel('rfq'); setManualMode(false); }}><span>浏览器插件</span></button>
+      </div>}
+      {!manualMode && (channel === 'email' ? <section id="email-intake-panel" className="intake-panel" aria-labelledby="email-intake-title">
+        <div className="intake-panel-heading"><div><h3 id="email-intake-title">邮箱收件箱</h3><p>{mailLoading ? '正在检查邮箱连接…' : mailStatus?.mode === 'imap' ? `已连接 · ${mailStatus.address || mailSettings?.user || '邮箱账号'}` : '未连接邮箱，完成 IMAP 设置后同步邮件'}</p></div>
+          <div className="intake-heading-actions"><button type="button" className="button button-secondary button-small" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> <span>邮箱设置</span></button><button type="button" className="button button-secondary button-small" onClick={() => void refreshInbox()} disabled={mailStatus?.mode !== 'imap' || inboxLoading || mailLoading}><RefreshCw size={14} className={inboxLoading ? 'spin' : ''} /> <span>刷新收件箱</span></button></div>
+        </div>
+        {mailStatus?.mode === 'imap' ? <div className="mail-thread-content">
           {threads.length === 0 ? <div className="inbox-empty-state"><RefreshCw size={16} /><span>{inboxLoading ? '正在读取收件箱…' : '收件箱为空，点击“刷新收件箱”同步邮件。'}</span></div> : <div className="mail-thread-list" aria-label="邮件会话">
             {threads.map((thread) => <button type="button" key={thread.thread_id} className={`mail-thread-row ${selectedThreadId === thread.thread_id ? 'selected' : ''}`} aria-pressed={selectedThreadId === thread.thread_id} onClick={() => void selectThread(thread.thread_id)}>
               <span className="mail-thread-title">{thread.subject || '无主题'}</span><span className="mail-thread-meta">{thread.buyer_name || thread.buyer_addr} · {new Date(thread.updated_at).toLocaleString('zh-CN')}</span><span className="mail-thread-preview">{thread.preview}</span>
             </button>)}
           </div>}
           {threadPreview && <section id="email-thread-preview" className="email-thread-preview" aria-label="邮件正文预览"><div><strong>{threadPreview.subject || '无主题'}</strong><span>{threadPreview.messages.length} 封邮件 · 选取最新买家来信分析</span></div>{threadPreview.messages.map((message) => <article key={message.message_id}><header><strong>{message.from_name || message.from_email}</strong><time>{new Date(message.date).toLocaleString('zh-CN')}</time></header><p>{message.body_clean}</p></article>)}<button type="button" className="button button-primary button-small" disabled={importBusy} onClick={() => void importThread()}>{importBusy ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} <span>{importBusy ? '正在导入…' : '导入到案件'}</span></button></section>}
-        </div> : <div className="inbox-empty-state"><RefreshCw size={16} /><span>连接邮箱后可同步并选择一封询盘邮件。</span></div>}
-        <button type="button" className="text-button" onClick={() => setManualMode(true)}>手动填写邮箱询盘</button>
+        </div> : <div className="inbox-empty-state"><span>{mailLoading ? '正在检查邮箱连接…' : '尚未连接邮箱'}</span><button type="button" className="button button-secondary button-small" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> 配置邮箱</button></div>}
+        <button type="button" className="text-button" onClick={() => setManualMode(true)}>手动录入邮箱询盘</button>
       </section> : <section id="extension-intake-panel" className="intake-panel" aria-labelledby="extension-intake-title">
-        <div className="intake-panel-heading"><div><h3 id="extension-intake-title">浏览器插件</h3><p>在阿里巴巴国际站对话中复核原文并提交，再从待选列表导入。</p></div><button type="button" className="button button-secondary button-small" onClick={() => void (async () => { setCaptureLoading(true); try { const result = await api<{ captures: ExtensionCapture[] }>('/api/extension/captures'); setCaptures(result.captures || []); setNotice(null); } catch (error) { setNotice({ kind: 'error', message: error instanceof Error ? error.message : '捕获列表读取失败' }); } finally { setCaptureLoading(false); } })()} disabled={captureLoading}><RefreshCw size={14} className={captureLoading ? 'spin' : ''} /><span>刷新待选</span></button></div>
-        {captures.length === 0 ? <div className="inbox-empty-state"><span>{captureLoading ? '正在检查本机待选列表…' : '暂无待选询盘。请在插件中复核消息并提交到新建询盘。'}</span></div> : <div className="mail-thread-content">
+        <div className="intake-panel-heading"><div><h3 id="extension-intake-title">浏览器插件</h3><p>阿里巴巴国际站的待选询盘</p></div><button type="button" className="button button-secondary button-small" onClick={() => void (async () => { setCaptureLoading(true); try { const result = await api<{ captures: ExtensionCapture[] }>('/api/extension/captures'); setCaptures(result.captures || []); setNotice(null); } catch (error) { setNotice({ kind: 'error', message: error instanceof Error ? error.message : '捕获列表读取失败' }); } finally { setCaptureLoading(false); } })()} disabled={captureLoading}><RefreshCw size={14} className={captureLoading ? 'spin' : ''} /><span>刷新待选</span></button></div>
+        {captures.length === 0 ? <div className="inbox-empty-state"><span>{captureLoading ? '正在检查待选询盘…' : '暂无待选内容，请先从浏览器插件提交一条询盘。'}</span></div> : <div className="mail-thread-content">
           <div className="mail-thread-list" aria-label="插件捕获的询盘">
             {captures.map((capture) => <button type="button" key={capture.id} className={`mail-thread-row ${selectedCaptureId === capture.id ? 'selected' : ''}`} aria-pressed={selectedCaptureId === capture.id} onClick={() => void selectCapture(capture.id)}>
               <span className="mail-thread-title">{capture.sourceUrl}</span><span className="mail-thread-meta">提交于 {new Date(capture.createdAt).toLocaleString('zh-CN')} · {capture.id}</span>
@@ -283,8 +284,8 @@ export default function NewInquiryDialog({ onClose, onCreate, onOpenCase, busy }
           </div>
           {capturePreview && <section id="extension-capture-preview" className="email-thread-preview" aria-label="插件询盘预览"><div><strong>询盘原文</strong><span>{capturePreview.sourceUrl}</span><time>{new Date(capturePreview.createdAt).toLocaleString('zh-CN')}</time></div><article><p>{capturePreview.text}</p></article><button type="button" className="button button-primary button-small" disabled={captureBusy} onClick={() => void importCapture()}>{captureBusy ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} <span>{captureBusy ? '正在导入…' : '预览并导入到案件'}</span></button></section>}
         </div>}
-        <button type="button" className="text-button" onClick={() => setManualMode(true)}>手动填写 RFQ 询盘</button>
-      </section>}
+        <button type="button" className="text-button" onClick={() => setManualMode(true)}>手动录入 RFQ 询盘</button>
+      </section>)}
       {manualMode && <form className="manual-inquiry-form" onSubmit={(event: FormEvent) => { event.preventDefault(); onCreate({ name, buyer, inquiry, channel }); }}>
         <div className="intake-panel-heading"><div><h3>手动录入</h3><p>原文会保存到案件记录中，渠道保持为 {channel === 'email' ? '邮箱' : 'RFQ'}。</p></div><button type="button" className="text-button" onClick={() => setManualMode(false)}>返回渠道导入</button></div>
         <Field label="案件名称" value={name} onChange={setName} placeholder="例如：NL-L 德国买家询盘" />
@@ -293,6 +294,7 @@ export default function NewInquiryDialog({ onClose, onCreate, onOpenCase, busy }
         <div className="dialog-actions"><button type="button" className="button button-secondary" onClick={onClose}>取消</button><button type="submit" className="button button-primary" disabled={busy || !name.trim() || !buyer.trim() || !inquiry.trim()}>{busy ? <Loader2 size={15} className="spin" /> : <Plus size={15} />} 创建并进入询盘</button></div>
       </form>}
       {notice && <p className={`intake-notice notice-${notice.kind}`} role="status">{notice.message}</p>}
+      </>}
     </section>
   </div>, portalTarget);
 }
