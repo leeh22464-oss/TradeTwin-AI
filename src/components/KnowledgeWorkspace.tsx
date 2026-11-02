@@ -228,10 +228,10 @@ function RuntimeKnowledgePanel({ runtimeKnowledge }: { runtimeKnowledge?: Runtim
   if (!runtimeKnowledge) return null;
   const statusLabel = runtimeKnowledge.available ? '已载入' : '需确认';
   return <details className="knowledge-runtime-panel">
-    <summary className="knowledge-section-head knowledge-runtime-summary"><div><h2>实际推演数据来源</h2><p>覆盖判断与报价规则使用的运行时知识配置，可展开核对版本、指纹与来源文件。</p></div><span className={`knowledge-runtime-status ${runtimeKnowledge.available ? 'is-available' : 'is-review'}`}>{statusLabel} · {runtimeKnowledge.sources.length} 个来源 <ChevronDown size={15} aria-hidden="true" /></span></summary>
+    <summary className="knowledge-section-head knowledge-runtime-summary"><div><h2>推演数据来源</h2><p>核对版本、指纹与来源文件。</p></div><span className={`knowledge-runtime-status ${runtimeKnowledge.available ? 'is-available' : 'is-review'}`}>{statusLabel} · {runtimeKnowledge.sources.length} 个来源 <ChevronDown size={15} aria-hidden="true" /></span></summary>
     <div className="knowledge-runtime-body">
       <dl className="knowledge-runtime-meta"><div><dt>Profile</dt><dd>{runtimeKnowledge.profileId}</dd></div><div><dt>版本</dt><dd>{runtimeKnowledge.version}</dd></div><div><dt>来源指纹</dt><dd title={runtimeKnowledge.fingerprint}>{runtimeKnowledge.fingerprint.slice(0, 16)}…</dd></div></dl>
-      <p className="knowledge-runtime-note">口径提示：驱动未变时 EMC 只标记待人工复核；更换驱动增加 3 天打样，之后测试并行、文件更新串行。以上仍需实验室或认证工程师确认。</p>
+      <p className="knowledge-runtime-note">EMC 不自动放行；新驱动增加 3 天打样，最终排期待确认。</p>
       {runtimeKnowledge.warnings.length > 0 && <div className="knowledge-warning"><ShieldAlert size={15} /><span>{runtimeKnowledge.warnings.join('；')}</span></div>}
       <ul className="knowledge-runtime-sources">{runtimeKnowledge.sources.map((source, index) => <li key={`${source.path}-${index}`}><div><strong>{source.path}</strong><span>{[source.documentId && `文档 ${source.documentId}`, source.ruleId && `规则 ${source.ruleId}`, source.page !== undefined && `第 ${source.page} 页`, source.sha256 && `指纹 ${source.sha256.slice(0, 12)}…`].filter(Boolean).join(' · ') || '未提供细分定位'}</span></div><a href={`/api/runtime/sources/${index}`} target="_blank" rel="noreferrer">打开来源记录 <ExternalLink size={12} /></a></li>)}</ul>
     </div>
@@ -356,7 +356,7 @@ export default function KnowledgeWorkspace({ entries, runtimeKnowledge, onRefres
 
   return <div className="secondary-page knowledge-workspace">
     <section className="page-heading knowledge-heading">
-      <div><h1>知识与规则</h1><p>这里展示已导入的公开法规入口与结构化索引，不是法规全文仓库。覆盖判断仍需回到具体证据、规则版本与人工确认。</p></div>
+      <div><h1>知识与规则</h1><p>公开来源与本地索引；结论仍需证据核验。</p></div>
       <div className="knowledge-heading-actions"><button className="button button-secondary" onClick={syncIndex} disabled={syncing || indexLoading || researchBusy}>{syncing ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />} 同步索引</button><button className="button button-primary" onClick={() => setShowAdd((value) => !value)}><Plus size={16} /> 添加知识</button></div>
     </section>
 
@@ -368,7 +368,7 @@ export default function KnowledgeWorkspace({ entries, runtimeKnowledge, onRefres
         <dl className="knowledge-counts"><div><dt>来源入口</dt><dd>{index.package.sourceCount}</dd></div><div><dt>规则卡</dt><dd>{index.package.ruleCardCount}</dd></div><div><dt>检查清单</dt><dd>{index.package.checklistCount}</dd></div><div><dt>术语</dt><dd>{index.package.glossaryCount}</dd></div><div><dt>已导入条目</dt><dd>{index.package.importedCount}</dd></div></dl>
       </section>
       {index.package.warnings.length > 0 && <div className="knowledge-warning"><ShieldAlert size={15} /><span>{index.package.warnings.join('；')}</span></div>}
-      <div className="knowledge-boundary"><FileCheck2 size={16} /><span>已导入的是来源索引、规则卡、检查清单与术语包；缺失文件、未知参数和未确认范围不会自动放行。</span></div>
+      <div className="knowledge-boundary"><FileCheck2 size={16} /><span>索引不等于法规全文；缺文件、未知参数和待确认范围均不会自动放行。</span></div>
       {runtimeKnowledge && <RuntimeKnowledgePanel runtimeKnowledge={runtimeKnowledge} />}
     </>}
 
